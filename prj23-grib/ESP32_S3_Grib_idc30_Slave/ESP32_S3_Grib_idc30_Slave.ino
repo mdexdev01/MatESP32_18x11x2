@@ -1,5 +1,5 @@
 /*
-  <Arduino Config>
+  <Arduino Config>a
   Boards Manager download : ESP32 by Espressif Systems.
   BOARD : "ESP32-S3 DEVKITC-1" (NOT 1.1) OR "ADAFRUIT QT py esp32-C3"
   DESC : SRAM 512K, ROM 384K, FLASH 8M, PSRAM 2M  
