@@ -7,7 +7,7 @@
  
  TODO :
  Open serial port manually
- Save (Not replay. )
+ Save (Not replay.. )
  Trigger mode ==> Like osciloscope, determination with summation / max cell value / COM Pos (Center of Mass)
  */
 
