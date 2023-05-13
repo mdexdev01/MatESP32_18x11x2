@@ -1,3 +1,10 @@
+../build/
+../build1/
+../build2/
+build/
+build1/
+build2/
+*.o 
 *.cfg
 *.svd
 *.x
