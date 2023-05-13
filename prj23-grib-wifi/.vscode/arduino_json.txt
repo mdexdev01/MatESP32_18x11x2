@@ -1,0 +1,17 @@
+{
+    "configuration": "JTAGAdapter=default,PSRAM=disabled,FlashMode=qio,FlashSize=4M,LoopCore=1,EventsCore=1,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,PartitionScheme=default,CPUFreq=240,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
+    "board": "esp32:esp32:esp32s3",
+    "port": "COM13",
+   	"sketch": "ESP32_S3_Grib_idc30\\ESP32_S3_Grib_idc30.ino",
+    "output": "../build1",
+    "prebuild": "bash prebuild1.sh"
+}
+
+{
+    "configuration": "JTAGAdapter=default,PSRAM=disabled,FlashMode=qio,FlashSize=4M,LoopCore=1,EventsCore=1,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,PartitionScheme=default,CPUFreq=240,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
+    "board": "esp32:esp32:esp32s3",
+    "port": "COM13",
+   	"sketch": "ESP32_S3_Grib_idc30\\ESP32_S3_Grib_idc30_Slave.ino",
+    "output": "../build2",
+    "prebuild": "bash prebuild2.sh"
+}
