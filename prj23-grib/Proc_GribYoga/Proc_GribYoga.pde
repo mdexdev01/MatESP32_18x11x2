@@ -179,14 +179,12 @@ void openSerialPort(String portName) {
 
 int sensor_frame_count = 0;
 
-void draw2() {
+void draw_singleTask() {
   boolean result_read = readData_Grib();
   
   if (result_read == true) {
     parseData_GRIB(PacketData);
     sensor_frame_count++;
-
-    //calc_copi();
   }
   else {
     // println("parse error");
@@ -335,36 +333,6 @@ boolean readData_Grib() {
     }
 
 
-  /*
-    println("matrix) read length = " + read_len);
-    println("header = " + PacketData[0]);
-
-    for (int k = 0; k < NUM_BLOCK; k++) {
-      for (int col = 0; col < NUM_CELLS_COL; col++) {
-        for (int row = 0; row < NUM_CELLS_ROW; row++ ) {
-          int xy_pos = (row + NUM_CELLS_ROW * col)  * SINGLE_DATA_LEN;
-
-          int value = byteToInt(PacketData[HEADER_LEN + xy_pos]);
-
-          print(value + ", ");
-        }
-        println("*");
-      }
-      println("=================");
-    }
-  */
-    // if (PacketData[5] == 0) {
-    //   for (int i = PACKET_HEADER_LEN ; i < (PACKET_LEN_TYPE0 - PACKET_TAIL_LEN) ; i++) {
-    //     PacketData[i] = (byte)(10 + (i - PACKET_HEADER_LEN) / 2);
-    //   }
-    // }
-    // else if ( (PacketData[5] == 1) ) {
-    //   for (int i = PACKET_HEADER_LEN ; i < (PACKET_LEN_TYPE1 - PACKET_TAIL_LEN) ; i++) {
-    //     PacketData[i] = (byte)(60 + (i - PACKET_HEADER_LEN) / 4);
-    //   }
-    //   // println("start index = " + PacketData[6]);
-    // }
-
     parseData_GRIB(PacketData);
 
     countNull = 0;
@@ -374,7 +342,7 @@ boolean readData_Grib() {
 
 }
 
-boolean readData_Grib2() {
+boolean readData_Grib_Raw() {
   if ( isPortOpened == false ) {
     println("port not opened");
     return false;
