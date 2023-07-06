@@ -1,0 +1,17 @@
+[Install]
+
+1) ESP32-S3 USB Driver
+ - CP2104 for ESP32 S3) https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+ - CH340 for Some boards) https://learn.sparkfun.com/tutorials/how-to-install-ch340-drivers/all#meet-the-ch340
+
+2) 프로세싱
+ - Tools > Manage Tools > Lib > Search and install "ControlP5", and "Interfascia" (for VSCode)
+
+3) 아두이노 (필요시)
+보드 라이브러리 설치 - ESP32
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+보드 환경 설정 - 
+
+[프로세싱 추가 설치]
+라이브러리 - controlP5
