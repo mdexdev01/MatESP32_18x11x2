@@ -1,3 +1,5 @@
+#include <bluefruit.h>
+
 /*
   <Arduino Config>
   Boards Manager download : ESP32 by Espressif Systems.
