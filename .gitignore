@@ -5,7 +5,13 @@ build/
 build1/
 build2/
 
+prj23-grib/Proc_GribYoga/CSV_Data/
 prj23-grib-ble/Proc_GribYoga/CSV_Data/
+prj23-grib-wifi/Proc_GribYoga/CSV_Data/
+
+prj23-grib/Proc_GribYoga/ScreenShot/
+prj23-grib-ble/Proc_GribYoga/ScreenShot/
+prj23-grib-wifi/Proc_GribYoga/ScreenShot/
 
 # file extentions
 *.o 
