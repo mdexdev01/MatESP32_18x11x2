@@ -4,6 +4,10 @@
 build/
 build1/
 build2/
+
+prj23-grib-ble/CSV_Data/
+
+# file extentions
 *.o 
 *.cfg
 *.svd
@@ -11,4 +15,3 @@ build2/
 *.inox
 *.class
 *.java
-
