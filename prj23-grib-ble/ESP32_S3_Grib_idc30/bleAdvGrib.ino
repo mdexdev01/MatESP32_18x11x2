@@ -16,20 +16,17 @@ https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/src/BLEAdve
    4. wait
    5. Stop advertising.
 */
-
-/* all
+#include <BLE2902.h>
+#include <BLEBeacon.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-// #include <BLE2902.h>
-#include <BLEBeacon.h>
+
 #include "esp_bt_device.h"
 
-
-#define DEVICE_NAME       "Grib"
-#define SERVICE_UUID      "bdfa6743-eb30-4139-80f8-e016adffe2d1" // for Grib
-#define PROPERTY_UUID     "bdfa6743-eb30-4139-80f8-e016adffe2d2"
-
+#define DEVICE_NAME "Grib"
+#define SERVICE_UUID "bdfa6743-eb30-4139-80f8-e016adffe2d1"  // for Grib
+#define PROPERTY_UUID "bdfa6743-eb30-4139-80f8-e016adffe2d2"
 
 // #define DEVICE_NAME            "Grib"
 // #define SERVICE_UUID           "7A0247E7-8E88-409B-A959-AB5092DDB03E"
@@ -37,192 +34,168 @@ https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/src/BLEAdve
 // #define BEACON_UUID_REV        "A134D0B2-1DA2-1BA7-C94C-E8E00C9F7A2D"
 // #define CHARACTERISTIC_UUID    "82258BAA-DF72-47E8-99BC-B73D7ECD08A5"
 
-BLEServer *pServer;
-BLECharacteristic *pCharacteristic;
+BLEServer* pServer;
+BLECharacteristic* pCharacteristic;
 
 bool deviceConnected = false;
-bool oldDeviceConnected = false;
-uint8_t value = 0;
+int32_t value = 0;
 
-class MyServerCallbacks: public BLEServerCallbacks {
+class MyServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      Serial.println("deviceConnected = true");
+        deviceConnected = true;
+        Serial.println("deviceConnected = true");
     };
 
     void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      Serial.println("deviceConnected = false");
+        deviceConnected = false;
+        Serial.println("deviceConnected = false");
 
-      // Restart advertising to be visible and connectable again
-      BLEAdvertising* pAdvertising;
-      pAdvertising = pServer->getAdvertising();
-      pAdvertising->start();
-      Serial.println("iBeacon advertising restarted");
+        // Restart advertising to be visible and connectable again
+        BLEAdvertising* pAdvertising;
+        pAdvertising = pServer->getAdvertising();
+        pAdvertising->start();
+        Serial.println("iBeacon advertising restarted");
     }
 };
 
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string rxValue = pCharacteristic->getValue();
+class MyCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* pCharacteristic) {
+        std::string rxValue = pCharacteristic->getValue();
 
-      if (rxValue.length() > 0) {
-        Serial.println("*********");
-        Serial.print("Received Value: ");
-        for (int i = 0; i < rxValue.length(); i++) {
-          Serial.print(rxValue[i]);
+        if (rxValue.length() > 0) {
+            Serial.println("*********");
+            Serial.print("Received Value: ");
+            for (int i = 0; i < rxValue.length(); i++) {
+                Serial.print(rxValue[i]);
+            }
+            Serial.println();
+            Serial.println("*********");
         }
-        Serial.println();
-        Serial.println("*********");
-
-      }
     }
 };
-
 
 void init_service() {
-  BLEAdvertising* pAdvertising;
+    BLEAdvertising* pAdvertising;
+    pAdvertising = pServer->getAdvertising();
+    pAdvertising->stop();
 
-  Serial.println("Init BLE service...");
-  pAdvertising = pServer->getAdvertising();
-  pAdvertising->stop();
+    // Create the BLE Service
+    BLEService* pService = pServer->createService(BLEUUID(SERVICE_UUID));
 
-  // Create the BLE Service
-  BLEService *pService = pServer->createService(BLEUUID(SERVICE_UUID));
-  Serial.println("BLE server created");
+    // Create a BLE Characteristic
+    pCharacteristic = pService->createCharacteristic(
+        PROPERTY_UUID,
+        // BLECharacteristic::PROPERTY_WRITE  |
+        BLECharacteristic::PROPERTY_NOTIFY |
+            // BLECharacteristic::PROPERTY_INDICATE |
+            BLECharacteristic::PROPERTY_READ);
+    pCharacteristic->setCallbacks(new MyCallbacks());
+    pCharacteristic->addDescriptor(new BLE2902());
 
+    pAdvertising->addServiceUUID(BLEUUID(SERVICE_UUID));
 
-  // Create a BLE Characteristic
-  pCharacteristic = pService->createCharacteristic(
-                      PROPERTY_UUID,
-                      BLECharacteristic::PROPERTY_READ   |
-                      BLECharacteristic::PROPERTY_WRITE  |
-                      // BLECharacteristic::PROPERTY_NOTIFY |
-                      BLECharacteristic::PROPERTY_INDICATE
-                    );
-  pCharacteristic->setCallbacks(new MyCallbacks());
-  // pCharacteristic->addDescriptor(new BLE2902());
+    // Start the service
+    pService->start();
 
-  pAdvertising->addServiceUUID(BLEUUID(SERVICE_UUID));
+    pAdvertising->start();
+}
 
-  {
+void init_beacon() {
+    BLEAdvertising* pAdvertising;
+    pAdvertising = pServer->getAdvertising();
+    pAdvertising->stop();
+    // iBeacon
+    // BLEBeacon myBeacon;
+    // myBeacon.setManufacturerId(0x4c00);
+    // myBeacon.setMajor(5);
+    // myBeacon.setMinor(88);
+    // myBeacon.setSignalPower(0xc5);
+    // myBeacon.setProximityUUID(BLEUUID(BEACON_UUID_REV));
+
     BLEAdvertisementData advertisementData;
     advertisementData.setFlags(0x1A);
 
     // advertisementData.setManufacturerData(myBeacon.getData());
     {
-      const uint8_t* point = esp_bt_dev_get_address();
+        const uint8_t* point = esp_bt_dev_get_address();
 
-      byte manufacturer_specific_data[6];
-      int offset = 0;
-      // manufacturer_specific_data[0] = 7;
-      // manufacturer_specific_data[1] = 0xff;
-      manufacturer_specific_data[offset++] = 0x52;
-      manufacturer_specific_data[offset++] = 0x47;
-      manufacturer_specific_data[offset++] = 0x04;
-      manufacturer_specific_data[offset++] = point[3];
-      manufacturer_specific_data[offset++] = point[4];
-      manufacturer_specific_data[offset++] = point[5];
+        byte manufacturer_specific_data[6];
+        int offset = 0;
+        // manufacturer_specific_data[0] = 7;
+        // manufacturer_specific_data[1] = 0xff;
+        manufacturer_specific_data[offset++] = 0x52;
+        manufacturer_specific_data[offset++] = 0x47;
+        manufacturer_specific_data[offset++] = 0x04;
+        manufacturer_specific_data[offset++] = point[3];
+        manufacturer_specific_data[offset++] = point[4];
+        manufacturer_specific_data[offset++] = point[5];
 
-    //std::string((char*) &m_beaconData, sizeof(m_beaconData));
+        // std::string((char*) &m_beaconData, sizeof(m_beaconData));
 
-      advertisementData.setManufacturerData(std::string((char*) manufacturer_specific_data, sizeof(manufacturer_specific_data)));
+        advertisementData.setManufacturerData(std::string((char*)manufacturer_specific_data, sizeof(manufacturer_specific_data)));
     }
 
     pAdvertising->setAdvertisementData(advertisementData);
 
-  }
-
-  // Start the service
-  Serial.println("Initializing... BLE service");
-  pService->start();
-  
-  Serial.println("Initializing... advertising");
-  pAdvertising->start();
-}
-
-void init_beacon() {
-  BLEAdvertising* pAdvertising;
-  pAdvertising = pServer->getAdvertising();
-  pAdvertising->stop();
-  // iBeacon
-  // BLEBeacon myBeacon;
-  // myBeacon.setManufacturerId(0x4c00);
-  // myBeacon.setMajor(5);
-  // myBeacon.setMinor(88);
-  // myBeacon.setSignalPower(0xc5);
-  // myBeacon.setProximityUUID(BLEUUID(BEACON_UUID_REV));
-
-  BLEAdvertisementData advertisementData;
-  advertisementData.setFlags(0x1A);
-
-  // advertisementData.setManufacturerData(myBeacon.getData());
-  {
-    const uint8_t* point = esp_bt_dev_get_address();
-
-    byte manufacturer_specific_data[6];
-    int offset = 0;
-    // manufacturer_specific_data[0] = 7;
-    // manufacturer_specific_data[1] = 0xff;
-    manufacturer_specific_data[offset++] = 0x52;
-    manufacturer_specific_data[offset++] = 0x47;
-    manufacturer_specific_data[offset++] = 0x04;
-    manufacturer_specific_data[offset++] = point[3];
-    manufacturer_specific_data[offset++] = point[4];
-    manufacturer_specific_data[offset++] = point[5];
-
-  //std::string((char*) &m_beaconData, sizeof(m_beaconData));
-
-    advertisementData.setManufacturerData(std::string((char*) manufacturer_specific_data, sizeof(manufacturer_specific_data)));
-  }
-  pAdvertising->setAdvertisementData(advertisementData);
-
-  pAdvertising->start();
+    pAdvertising->start();
 }
 
 void setup_advGrib() {
-  Serial.println("Initializing... BLE");
+    Serial.println();
+    Serial.println("Initializing...");
+    Serial.flush();
 
-  BLEDevice::init(DEVICE_NAME);
-  Serial.println("BLEDevice::createServer()");
-  pServer = BLEDevice::createServer();
-  
-  Serial.println("setCallbacks()");
-  pServer->setCallbacks(new MyServerCallbacks());
+    BLEDevice::init(DEVICE_NAME);
+    pServer = BLEDevice::createServer();
+    BLEDevice::setMTU(500);
+    pServer->setCallbacks(new MyServerCallbacks());
 
-  init_service();
-  // init_beacon();
+    init_service();
+    init_beacon();
 
-  Serial.println("iBeacon + service defined and advertising!");
+    Serial.println("iBeacon + service defined and advertising!");
 }
 
-void loop_advGrib(byte *packet_buffer, int packet_len) {
-  if (deviceConnected) {
-    Serial.printf("*** BLE sending : %d ***\n", value);
-    // pCharacteristic->setValue(&value, 1);
-    // pCharacteristic->notify();
-
-    pCharacteristic->setValue(packet_buffer, packet_len);
-    value++;
-
-    delay(1000);
-  }
-  else {
-    return;
-  }
-
-  // disconnecting
-  if (!deviceConnected && oldDeviceConnected) {
-      delay(500); // give the bluetooth stack the chance to get things ready
-      pServer->startAdvertising(); // restart advertising
-      Serial.println("start advertising");
-      oldDeviceConnected = deviceConnected;
-  }
-  // connecting
-  if (deviceConnected && !oldDeviceConnected) {
-  // do stuff here on connecting
-      oldDeviceConnected = deviceConnected;
-  }
-
+uint8_t value8 = 0;
+void loop_advNotify() {
+    if (deviceConnected) {
+        Serial.printf("*** NOTIFY: %d ***\n", value);
+        pCharacteristic->setValue(&value8, 1);
+        pCharacteristic->notify();
+        value8++;
+    }
+    delay(2000);
 }
-*/
+
+#define TX_PACKET_SIZE (16 * 11 + 4)
+uint8_t tx_data[TX_PACKET_SIZE];
+
+void loop_advGrib() {
+    if (deviceConnected) {
+        Serial.printf("*** NOTIFY: %d ***\n", value);
+        // pCharacteristic->setValue(&value, 1);
+
+        uint16_t mtuSize = BLEDevice::getMTU();
+        Serial.print("Negotiated MTU size: ");
+        Serial.println(mtuSize);
+
+        memcpy(tx_data, &value, 4);
+        for (int i = 4; i < TX_PACKET_SIZE; i++) {
+            tx_data[i] = (i % 100);
+        }
+
+        // if( (value % 2) == 0) {
+        pCharacteristic->setValue(tx_data, (size_t)TX_PACKET_SIZE);
+        pCharacteristic->notify();
+        // }
+        // else {
+        //   pCharacteristic->setValue(tx_data, (size_t)mtuSize);
+        //   pCharacteristic->notify();
+        // }
+
+        value++;
+    } else {
+        Serial.printf("*** Advertising: %d ***\n", value);
+    }
+    delay(100);
+}

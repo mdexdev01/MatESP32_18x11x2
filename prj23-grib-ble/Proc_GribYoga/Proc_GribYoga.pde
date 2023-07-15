@@ -49,7 +49,8 @@ boolean isPortOpened = false;
 
 int NUM_BLOCK = 2;
 int NUM_CELLS_ROW = 16;
-int NUM_CELLS_COL = 18;
+int NUM_CELLS_COL = 11;
+//int NUM_CELLS_COL = 18;
 int NUM_CH_IN_BLOCK = NUM_CELLS_ROW * NUM_CELLS_COL;
 int NUM_CH_IN_DIV3_PACKET = NUM_CELLS_ROW * NUM_CELLS_COL / 3;
 
@@ -63,7 +64,8 @@ int PACKET_LEN_TYPE1     = PACKET_HEADER_LEN + PACKET_TAIL_LEN + NUM_CH_IN_BLOCK
 int SINGLE_DATA_LEN = 1; // 1: byte, 2: short, 4: int
 
 byte sub_header = 0; // F0 = Left, F1 = Right
-byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN * 4 + 400 ]; // 400 : in case of overflow
+//byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN * 4 + 400 ]; // 400 : in case of overflow
+byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN + 100 ]; // 400 : in case of overflow
 byte[] PacketData = new byte [NUM_CH_IN_BLOCK * 2 ]; // 400 : in case of overflow
 
 
@@ -138,8 +140,8 @@ void setup() {
   setup_Pref();
 
   setup_EditView();
-  setup_Save();
   setup_UI();
+  setup_Save();
 
   //========================================
   //  THREAD - UART
@@ -270,10 +272,11 @@ boolean readData_Grib() {
       if (100 < countNull)
         drawTextLog("Serial is not connected");
 
-      // println("available only " + available_len);
+        // println("available only " + available_len);
 
       delay(1);
       continue;
+
     }
 
 
@@ -283,6 +286,7 @@ boolean readData_Grib() {
     boolean good_packet = false;
     if(read_len == PACKET_LEN_TYPE0) {
         System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE0);
+        println("packet 0 good");
         good_packet = true;
     }
     else if(read_len == PACKET_LEN_TYPE1) {
@@ -291,7 +295,7 @@ boolean readData_Grib() {
     }
     else {  //  else a 
       if(read_len < PACKET_LEN_TYPE1) {
-        // println("lack of read :" + read_len);
+        println("lack of read :" + read_len);
         // println(PacketData);
         delay(1);
         continue;
@@ -301,6 +305,8 @@ boolean readData_Grib() {
 
         if( PacketRawData[offset1] == intToByte(0xFF) && PacketRawData[offset1+1] == intToByte(0xFF) && 
             PacketRawData[read_len-2] == 16   && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 1
+          println("packet 1 good");
+
           System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE1), PacketData, 0, PACKET_LEN_TYPE1);
           good_packet = true;
         }
@@ -311,11 +317,15 @@ boolean readData_Grib() {
 
         if( PacketRawData[offset0] == intToByte(0xFF) && PacketRawData[offset0+1] == intToByte(0xFF) && 
             PacketRawData[read_len-2] == 0 && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 0 
+          println("packet 2 good");
+
           System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE0), PacketData, 0, PACKET_LEN_TYPE0);
           good_packet = true;
         }
         else if(  PacketRawData[offset1] == intToByte(0xFF) && PacketRawData[offset1+1] == intToByte(0xFF) && 
                   PacketRawData[read_len-2] == 16  && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 1
+          println("packet 3 good");
+
           System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE1), PacketData, 0, PACKET_LEN_TYPE1);
           good_packet = true;
         }
@@ -327,6 +337,20 @@ boolean readData_Grib() {
     if( good_packet == false ) {
       println("read_len = " + read_len + " of " + available_len
                 + "[0]" + PacketRawData[0] + "[read_len-2]" + PacketRawData[read_len-2] + "[read_len-1]" + PacketRawData[read_len-1]);
+    }
+    else {
+      saveDump_storeData(PacketRawData, 186);
+      /*
+      for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
+        for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
+    
+          int xy_pos = x * NUM_CELLS_ROW + row;
+          int inv_pos = x * NUM_CELLS_ROW + revIndex16(row);
+          // DataBuf_U[inv_pos] = byteToInt(PacketRawData[HEADER_LEN + xy_pos]);
+          DataBuf_U[xy_pos] = intToByte(PacketRawData[0 + xy_pos]);
+        }
+      }
+      */
     }
 
 
@@ -394,4 +418,3 @@ boolean readData_Grib_Raw() {
 
   return true;
 }
-

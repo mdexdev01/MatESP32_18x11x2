@@ -133,7 +133,7 @@ int parseData_GRIB(byte[] read_data) {
 
   if(board_id == 0) {
     parseData_TopLeftStart(read_data, major_ver, minor_ver, reserved_0, reserved_1);
-    compressTest_U();
+    // compressTest_U();
     VB_Filled_Board0 = true;
     rx_count_board_0++;
   }
@@ -340,4 +340,3 @@ int parseData_BottomLeftStart2(byte[] read_data, int major_ver, int minor_ver, i
   return -1;
 
 }
-

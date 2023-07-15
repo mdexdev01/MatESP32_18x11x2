@@ -1,9 +1,13 @@
 
 
 
+int BASE_0to1(int num) {
+  return (num + 1);
+}
 
 void setup_Save() {
-  
+  saveDump_open();
+
 }
 
 
@@ -39,8 +43,43 @@ void update_Save() {
 Table table;
 String saveCSV_FileName = "CSV_data/";
 
-int BASE_0to1(int num) {
-  return (num + 1);
+String saveDump_FileName = "CSV_data/";
+
+void saveDump_open() {
+  saveDump_FileName = "CSV_data/";
+
+  String text_field = cp5.get(Textfield.class, "NAME").getText();
+  
+  String temp_str = strPathCSV + "/" + text_field + "/" + getCurTimeString() + "_" + strFileInfo + ".hex";
+
+  saveDump_FileName = temp_str;
+
+  if(false) {
+    int counter = 0;
+    for(byte i = 0 ; i < 256 ; i++) {
+
+      System.out.printf("[%03d:0x%02x] ", i,  i); //  intToByte(0xFF)
+      if( (i % 16) == 15 ) {
+        println(" **");
+      }
+
+      counter++;
+
+      if(counter == 256)
+        break;
+    }
+  }
+
+}
+
+void saveDump_storeData(byte [] binData, int binLen) {
+  byte [] dump_data;
+  dump_data = new byte [binLen];
+
+  System.arraycopy(binData, 0, dump_data, 0, binLen);
+
+  saveBytes(saveDump_FileName, dump_data);
+
 }
 
 
