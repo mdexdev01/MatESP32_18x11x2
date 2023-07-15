@@ -5,7 +5,7 @@ build/
 build1/
 build2/
 
-prj23-grib-ble/CSV_Data/
+prj23-grib-ble/Proc_GribYoga/CSV_Data/
 
 # file extentions
 *.o 
