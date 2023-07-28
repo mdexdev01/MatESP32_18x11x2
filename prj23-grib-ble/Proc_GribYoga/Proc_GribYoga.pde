@@ -286,7 +286,7 @@ boolean readData_Grib() {
     boolean good_packet = false;
     if(read_len == PACKET_LEN_TYPE0) {
         System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE0);
-        println("packet 0 good");
+        // println("packet 0 good");
         good_packet = true;
     }
     else if(read_len == PACKET_LEN_TYPE1) {
@@ -295,7 +295,7 @@ boolean readData_Grib() {
     }
     else {  //  else a 
       if(read_len < PACKET_LEN_TYPE1) {
-        println("lack of read :" + read_len);
+        // println("lack of read :" + read_len);
         // println(PacketData);
         delay(1);
         continue;
