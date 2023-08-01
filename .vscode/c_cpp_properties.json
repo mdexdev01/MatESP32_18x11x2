@@ -8,9 +8,8 @@
             "intelliSenseMode": "windows-msvc-x64",
             "includePath": [
                 "${workspaceFolder}/**",
-                "c:\\Users\\mdex.sec01\\AppData\\Local\\Arduino15\\",
-                "c:\\Users\\mdex.sec01\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\2.0.8\\",
-                "C:/Users/mdex.sec01/AppData/Local/Arduino15/packages/esp32/hardware/esp32/2.0.8/libraries/BLE/src"
+                "c:\\Users\\mdex.sec01\\AppData\\Local\\Arduino15\\packages\\arduino\\hardware\\avr\\1.8.6\\**",
+                "c:\\Users\\mdex.sec01\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\2.0.8\\**"
             ],
             "forcedInclude": [],
             "cStandard": "c17",

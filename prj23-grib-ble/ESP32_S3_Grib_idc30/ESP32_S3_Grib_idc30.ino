@@ -13,12 +13,6 @@
   < Reference >
   MultiTask : https://blog.naver.com/PostView.naver?blogId=crucian2k3&logNo=222069416341&parentCategoryNo=&categoryNo=58&viewDate=&isShowPopularPosts=true&from=search
 
-  <TODO>
-  RLE
-  ADV, 
-  BLE with RLE, 
-  Deliver SUB with RLE
-  Receive Button input
 */
 
 #include "commPacket.h"
@@ -104,7 +98,7 @@ void pumpSerial(void *pParam) {
 
         //  SENSOR DATA - SLAVE
         //  true : deliver master + slave. false : deliver only master
-        while (false) { 
+        while (false) {
             int ret_val = deliverSlaveUart();  // enable only for the Master
 
             if (ret_val < 0)
@@ -133,16 +127,26 @@ void sendSerial(byte *packet_buffer, int packet_len) {
     if (false) {
         Serial.printf("\nloop=%d [s=%d, l=%d]\n", loop_count, packet_buffer[0], packet_buffer[packet_len - 1]);
         int offset = 0;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]); offset++;
-        Serial.printf(" [%d] %3d \n", offset, packet_buffer[offset]); offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
+        offset++;
+        Serial.printf(" [%d] %3d \n", offset, packet_buffer[offset]);
+        offset++;
 
         for (int mux_id = (MUX_LIST_LEN - 1); 0 <= mux_id; mux_id--) {
             Serial.printf("[mux:%2d] ", mux_id);

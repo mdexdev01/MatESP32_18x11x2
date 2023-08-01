@@ -3,5 +3,6 @@
 		"string": "cpp",
 		"xstring": "cpp",
 		"cctype": "cpp"
-	}
+	},
+	"idf.portWin": "COM3"
 }
