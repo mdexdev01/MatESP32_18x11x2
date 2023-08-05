@@ -267,6 +267,7 @@ void controlEvent(CallbackEvent event) {
   if (event.getAction() == ControlP5.ACTION_CLICK) {
     switch(event.getController().getAddress()) {
       case "/OPEN SERIAL":
+        println("OPEN SERIAL");
         strBuf = cp5.get(Textfield.class, SerialNoteLabel).getText();
         println("Button open Pressed : " + strBuf);
         
@@ -332,6 +333,7 @@ void controlEvent(CallbackEvent event) {
         println("tag_COPI_L --> " + value);
         break;
     }
+    println("hander ended...");
   }
 }
 

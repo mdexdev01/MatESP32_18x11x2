@@ -2,6 +2,6 @@
     "port": "COM3",
     "configuration": "JTAGAdapter=default,PSRAM=opi,FlashMode=qio,FlashSize=8M,LoopCore=1,EventsCore=1,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,PartitionScheme=default_8MB,CPUFreq=240,UploadSpeed=921600,DebugLevel=none,EraseFlash=none",
     "board": "esp32:esp32:esp32s3",
-    "sketch": "prj23-grib-ble\\ESP32_S3_Grib_idc30\\ESP32_S3_Grib_idc30.ino",
+    "sketch": "prj23-grib-ble\\ESP32_S3_Grib_idc30_Slave\\ESP32_S3_Grib_idc30_Slave.ino",
     "output": ".build\\"
 }

@@ -120,16 +120,16 @@ int parseData_GRIB(byte[] read_data) {
     return parse_error;
   }
 
-  int major_ver   = read_data[2];
-  int minor_ver   = read_data[3];
+  int major_ver   = byteToInt(read_data[2]);
+  int minor_ver   = byteToInt(read_data[3]);
 
-  int packet_len  = read_data[4];
-  int board_id    = read_data[5];
+  int packet_len  = byteToInt(read_data[4]);
+  int board_id    = byteToInt(read_data[5]);
 
-  int reserved_0  = read_data[6];
-  int reserved_1  = read_data[7];
+  int reserved_0  = byteToInt(read_data[6]);
+  int reserved_1  = byteToInt(read_data[7]);
 
-  // println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + reserved_0 + ", end:" + reserved_1);
+  println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
 
   if(board_id == 0) {
     parseData_TopLeftStart(read_data, major_ver, minor_ver, reserved_0, reserved_1);
@@ -138,19 +138,8 @@ int parseData_GRIB(byte[] read_data) {
     rx_count_board_0++;
   }
   else if(board_id == 1) {
-    parseData_BottomLeftStart(read_data, major_ver, minor_ver, reserved_0, reserved_1);
+    parseData_BottomLeftStart2(read_data, major_ver, minor_ver, reserved_0, reserved_1);
     rx_count_board_1++;
-    switch (reserved_0) {
-      case 0:
-      rx_count_board_1_0++;
-      break;
-      case 6:
-      rx_count_board_1_6++;
-      break;
-      case 12:
-      rx_count_board_1_12++;
-      break;
-    }
   }
 
   // println("rx bd[0]:" + rx_count_board_0 + " rx bd[1]:" + rx_count_board_1 + " [" + rx_count_board_1_0 + " : " + rx_count_board_1_6 + " : " + rx_count_board_1_12);
@@ -262,7 +251,8 @@ int parseData_TopLeftStart(byte[] read_data, int major_ver, int minor_ver, int s
 }
 
 
-int parseData_BottomLeftStart(byte[] read_data, int major_ver, int minor_ver, int start_x, int end_x) {
+
+int parseData_BottomLeftStart2(byte[] read_data, int major_ver, int minor_ver, int res_0, int res_1) {
   int offset = 0; 
 
   if(major_ver == 0) {
@@ -282,7 +272,7 @@ int parseData_BottomLeftStart(byte[] read_data, int major_ver, int minor_ver, in
     offset = 0;
     int xy_pos = 0;
 
-    for(int x = start_x ; x < end_x ; x++) {   //  NUM_CELLS_COL = 3~14
+    for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
       for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
         xy_pos = x * NUM_CELLS_ROW + row;
         
@@ -293,48 +283,6 @@ int parseData_BottomLeftStart(byte[] read_data, int major_ver, int minor_ver, in
         offset++;
       }
     }
-  }
-
-  return -1;
-
-}
-
-
-int parseData_BottomLeftStart2(byte[] read_data, int major_ver, int minor_ver, int res_0, int res_1) {
-  int offset = 0; 
-
-  if(major_ver == 0) {
-    for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
-      for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
-
-        int xy_pos = x * NUM_CELLS_ROW + row;
-        int inv_pos = x * NUM_CELLS_ROW + (NUM_CELLS_ROW - 1 ) - row;
-        // println("indexing=" + xy_pos + ", " + inv_pos);
-
-        DataBuf_D[inv_pos] = byteToInt(read_data[HEADER_LEN + xy_pos]);
-      }
-    }
-  }
-  else if(major_ver == 1) {
-    int start_x = res_0;
-    int end_x = res_1;
-    // if(start_x != 0)
-    //   return -1;
-
-    offset = 0;
-
-    int xy_pos = 0;
-    int inv_pos = 0;
-    for(int x = start_x ; x < end_x ; x++) {   //  NUM_CELLS_COL = 3~14
-      for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
-        // xy_pos = x * NUM_CELLS_ROW + row;
-        inv_pos = x * NUM_CELLS_ROW + (NUM_CELLS_ROW - 1 ) - row;
-        
-        DataBuf_D[inv_pos] = byteToInt(read_data[HEADER_LEN + offset]);
-        offset++;
-      }
-    }
-    // println("start_x:" + start_x + ", end_x:" + end_x + ", offset:" + offset + ", inv_pos:" + (inv_pos + offset));
   }
 
   return -1;

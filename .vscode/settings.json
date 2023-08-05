@@ -2,7 +2,16 @@
 	"files.associations": {
 		"string": "cpp",
 		"xstring": "cpp",
-		"cctype": "cpp"
+		"cctype": "cpp",
+		"istream": "cpp",
+		"memory": "cpp",
+		"tuple": "cpp",
+		"type_traits": "cpp",
+		"utility": "cpp",
+		"xlocmon": "cpp",
+		"xlocnum": "cpp",
+		"xloctime": "cpp",
+		"xutility": "cpp"
 	},
 	"idf.portWin": "COM3"
 }

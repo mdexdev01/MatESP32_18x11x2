@@ -64,8 +64,7 @@ int PACKET_LEN_TYPE1     = PACKET_HEADER_LEN + PACKET_TAIL_LEN + NUM_CH_IN_BLOCK
 int SINGLE_DATA_LEN = 1; // 1: byte, 2: short, 4: int
 
 byte sub_header = 0; // F0 = Left, F1 = Right
-//byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN * 4 + 400 ]; // 400 : in case of overflow
-byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN + 100 ]; // 400 : in case of overflow
+byte[] PacketRawData = new byte [NUM_CH_IN_BLOCK * SINGLE_DATA_LEN * 6 + 400 ]; // 400 : in case of overflow
 byte[] PacketData = new byte [NUM_CH_IN_BLOCK * 2 ]; // 400 : in case of overflow
 
 
@@ -141,7 +140,7 @@ void setup() {
 
   setup_EditView();
   setup_UI();
-  setup_Save();
+  // setup_Save();
 
   //========================================
   //  THREAD - UART
@@ -166,6 +165,22 @@ void setup() {
 
 }
 
+int sensor_frame_count = 0;
+
+void draw() {
+
+  if(flag_read == true) {
+    sensor_frame_count++;
+
+    flag_read = false;
+  }
+  update_EditView();
+
+}
+
+
+//  Serial example
+//    ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
 void openSerialPort(String portName) {
   PORT_NAME = portName;
 
@@ -179,47 +194,6 @@ void openSerialPort(String portName) {
 }
 
 
-int sensor_frame_count = 0;
-
-void draw_singleTask() {
-  boolean result_read = readData_Grib();
-  
-  if (result_read == true) {
-    parseData_GRIB(PacketData);
-    sensor_frame_count++;
-  }
-  else {
-    // println("parse error");
-  }
-
-  if( VB_Filled_Board0 == true) {
-    update_EditView();
-    VB_Filled_Board0 = false;
-  }
-  
-  // update_UI();
-
-  if (result_read == true) {
-    update_Save();
-  }
-}
-
-void draw() {
-
-  if(flag_read == true) {
-    sensor_frame_count++;
-
-    update_Save();
-
-    flag_read = false;
-  }
-  update_EditView();
-
-}
-
-
-//  Serial example
-//    ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
 boolean openSerialOrExit() {
   if (Serial.list().length == 0) {
     strBuffer = "ERROR ! Can't find serial port. Connect arduino and restart.";
@@ -259,8 +233,8 @@ boolean flag_read = false;
 boolean readData_Grib() {
   while(true) {
     if ( isPortOpened == false ) {
-      // println("port not opened");
-      delay(1);
+      println("port not opened");
+      delay(200);
       continue;
     }
 
@@ -272,74 +246,36 @@ boolean readData_Grib() {
       if (100 < countNull)
         drawTextLog("Serial is not connected");
 
-        // println("available only " + available_len);
+        println("available only " + available_len);
 
-      delay(1);
+      delay(20);
       continue;
 
     }
 
 
-    // int read_len = myPort.readBytesUntil(0xFE, PacketData); // read 1 whole buffer.
     int read_len = myPort.readBytesUntil(0xFE, PacketRawData); // read 1 whole buffer.
 
     boolean good_packet = false;
     if(read_len == PACKET_LEN_TYPE0) {
         System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE0);
-        // println("packet 0 good");
-        good_packet = true;
-    }
-    else if(read_len == PACKET_LEN_TYPE1) {
-        System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE1);
+        println("packet 0 good");
         good_packet = true;
     }
     else {  //  else a 
-      if(read_len < PACKET_LEN_TYPE1) {
         // println("lack of read :" + read_len);
         // println(PacketData);
         delay(1);
         continue;
-      }
-      else if(read_len < PACKET_LEN_TYPE0) {
-        int offset1 = (read_len - PACKET_LEN_TYPE1);
-
-        if( PacketRawData[offset1] == intToByte(0xFF) && PacketRawData[offset1+1] == intToByte(0xFF) && 
-            PacketRawData[read_len-2] == 16   && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 1
-          println("packet 1 good");
-
-          System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE1), PacketData, 0, PACKET_LEN_TYPE1);
-          good_packet = true;
-        }
-      }
-      else {//  else b
-        int offset0 = (read_len - PACKET_LEN_TYPE0);
-        int offset1 = (read_len - PACKET_LEN_TYPE1);
-
-        if( PacketRawData[offset0] == intToByte(0xFF) && PacketRawData[offset0+1] == intToByte(0xFF) && 
-            PacketRawData[read_len-2] == 0 && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 0 
-          println("packet 2 good");
-
-          System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE0), PacketData, 0, PACKET_LEN_TYPE0);
-          good_packet = true;
-        }
-        else if(  PacketRawData[offset1] == intToByte(0xFF) && PacketRawData[offset1+1] == intToByte(0xFF) && 
-                  PacketRawData[read_len-2] == 16  && PacketRawData[read_len-1] == intToByte(0xFE)) { // board 1
-          println("packet 3 good");
-
-          System.arraycopy(PacketRawData, (read_len - PACKET_LEN_TYPE1), PacketData, 0, PACKET_LEN_TYPE1);
-          good_packet = true;
-        }
-
-      } //  else b
-
     }// else a
+
 
     if( good_packet == false ) {
       println("read_len = " + read_len + " of " + available_len
                 + "[0]" + PacketRawData[0] + "[read_len-2]" + PacketRawData[read_len-2] + "[read_len-1]" + PacketRawData[read_len-1]);
     }
     else {
-      saveDump_storeData(PacketRawData, 186);
+      //saveDump_storeData(PacketRawData, 186);
       /*
       for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
         for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
@@ -353,7 +289,6 @@ boolean readData_Grib() {
       */
     }
 
-
     parseData_GRIB(PacketData);
 
     countNull = 0;
@@ -363,7 +298,31 @@ boolean readData_Grib() {
 
 }
 
-boolean readData_Grib_Raw() {
+
+void draw_singleTask_NotUsed() {
+  boolean result_read = readData_Grib();
+  
+  if (result_read == true) {
+    parseData_GRIB(PacketData);
+    sensor_frame_count++;
+  }
+  else {
+    // println("parse error");
+  }
+
+  if( VB_Filled_Board0 == true) {
+    update_EditView();
+    VB_Filled_Board0 = false;
+  }
+  
+  // update_UI();
+
+  if (result_read == true) {
+    // update_Save();
+  }
+}
+
+boolean readData_Grib_Raw_NotUsed() {
   if ( isPortOpened == false ) {
     println("port not opened");
     return false;
@@ -393,7 +352,6 @@ boolean readData_Grib_Raw() {
     return false;
   }
 
-/*
   println("matrix) read length = " + read_len);
   println("header = " + PacketData[0]);
 
@@ -410,7 +368,7 @@ boolean readData_Grib_Raw() {
     }
     println("=================");
   }
-*/
+
 
   countNull = 0;
 

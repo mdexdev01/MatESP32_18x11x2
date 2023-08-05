@@ -29,7 +29,8 @@ byte packetBuf[PACKET_LEN];
 
 //---------------------------------------------
 //  Protocol - Parcel
-#define PARCEL_MUX_LEN 6
+// #define PARCEL_MUX_LEN 6
+#define PARCEL_MUX_LEN MUX_LIST_LEN
 // #define PACKET_DIV        (MUX_LIST_LEN / PARCEL_MUX_LEN) //  18 / 6
 #define PARCEL_BODY_LEN (NUM_MUX_OUT * PARCEL_MUX_LEN)
 #define PARCEL_LEN (HEADER_LEN + PARCEL_BODY_LEN + TAIL_LEN)
@@ -86,8 +87,8 @@ void buildEncodePacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MU
     packet_buffer[3] = 0x00;              // Minor Ver
     packet_buffer[4] = (width * height);  // Packet body Len, width, height,
     packet_buffer[5] = BOARD_ID;          // Board ID
-    packet_buffer[6] = 0xFC;              // Reserved 0
-    packet_buffer[7] = 0xFB;              // Reserved 1
+    packet_buffer[6] = 0x00;              // Reserved 0
+    packet_buffer[7] = 0x00;              // Reserved 1
 
     int pa_index = HEADER_LEN;
 
@@ -131,50 +132,55 @@ byte packetBufSlave[PACKET_LEN * 5];  // * 5 for overflow
 int deliver_count_slave = 0;
 
 int deliverSlaveUart() {
-    int buf_len = Serial1.available();
-    if (buf_len == 0) {
+    int size_avail = Serial1.available();
+    if (size_avail == 0) {
         // Serial.println("deliver nothing");
         return -1;
-    } else if (buf_len < PARCEL_LEN) {
-        // Serial.printf("deliver small %d \n", buf_len);
+    } else if (size_avail < PARCEL_LEN) {
+        // Serial.printf("deliver small %d \n", size_avail);
         return -1;
     }
 
-    int read_num = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, buf_len);
-    int buf_len2 = Serial1.available();
+    int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail);
+    int size_left = Serial1.available();
 
-    /*
-      if( (packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC) ) {
-        Serial.printf("\nloop=%d, len={%d, %d, %d, %d} [%d, %d, %d, %d, %d, %d, {%d, %d}]\n", deliver_count_slave,
-                  buf_len, read_num, buf_len2, PARCEL_LEN,
-                  packetBufSlave[0], packetBufSlave[1],
-                  packetBufSlave[2], packetBufSlave[3],
-                  packetBufSlave[4], packetBufSlave[5],
-                  packetBufSlave[6], packetBufSlave[7]);
-        Serial.printf("tail (%d) [%d, %d, %d, %d]\n"  ,
-                    PARCEL_LEN -8,
-                    packetBufSlave[PARCEL_LEN -4], packetBufSlave[PARCEL_LEN -3],
-                    packetBufSlave[PARCEL_LEN -2], packetBufSlave[PARCEL_LEN -1]);
+/*
+    if( (packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC) ) {
+      Serial1.readBytes(&packetBufSlave[size_read], 1);
 
-        // for(int mux_id = (MUX_LIST_LEN - 1) ; 0 <= mux_id ; mux_id--) {
-        for(int mux_id = (6 - 1) ; 0 <= mux_id ; mux_id--) {
-          Serial.printf("[mux:%2d] ", mux_id + packetBufSlave[6]);
+      Serial.printf("\nloop=%d, avail=%d, read=%d, left=%d, %d} \n", deliver_count_slave,
+                size_avail, size_read, size_left, PARCEL_LEN);
+      Serial.printf("header8 [%d, %d, %d, %d : %d, %d, %d, %d]\n",
+                packetBufSlave[0], packetBufSlave[1],
+                packetBufSlave[2], packetBufSlave[3],
+                packetBufSlave[4], packetBufSlave[5],
+                packetBufSlave[6], packetBufSlave[7]);
+      Serial.printf("tail2 [%d, %d, %d, %d]\n"  ,
+                  packetBufSlave[PARCEL_LEN -4], packetBufSlave[PARCEL_LEN -3],
+                  packetBufSlave[PARCEL_LEN -2], packetBufSlave[PARCEL_LEN -1]);
 
-          //for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
-          for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
-            Serial.printf("%3d, ", packetBufSlave[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
-          }
-          Serial.println("~");
+      for(int mux_id = (MUX_LIST_LEN - 1) ; 0 <= mux_id ; mux_id--) {
+        Serial.printf("[mux:%2d] ", mux_id);
+
+        //for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
+        for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
+          Serial.printf("%3d, ", packetBufSlave[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
         }
+        Serial.println("~");
       }
-    */
+    }
+*/
+
+
     if ((packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC)) {
         packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC;
-        Serial.write(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+        sendSerial(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+        // Serial.write(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
     }
 
-    // if(PARCEL_LEN * 8 < buf_len2)
-    //   Serial1.readBytes(packetBufSlave, buf_len2);
+    size_left = Serial1.available();
+    if(PARCEL_LEN * 8 < size_left)
+      Serial1.readBytes(packetBufSlave, size_left);
 
     deliver_count_slave++;
 
