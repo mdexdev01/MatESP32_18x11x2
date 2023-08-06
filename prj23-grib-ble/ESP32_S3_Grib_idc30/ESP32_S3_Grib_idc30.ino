@@ -64,7 +64,7 @@ void loop() {
         // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
 
         // loop_advGrib(packetBuf, PACKET_LEN);
-        // sendSerial(packetBuf, PACKET_LEN);
+        // sendPacket(packetBuf, PACKET_LEN);
 
         delay(1);
     }
@@ -98,70 +98,107 @@ void pumpSerial(void *pParam) {
 
         //  SENSOR DATA - SLAVE
         //  true : deliver master + slave. false : deliver only master
+        //  if partial packet mode, it delivers all the partial packets of a single full packet in a while loop.
         while (true) {
-            int ret_val = deliverSlaveUart();  // enable only for the Master
+          int ret_val = deliverSlaveUart();  // enable only for the Master
 
-            if (ret_val <= 0)
-                break;
+          if (ret_val <= 0)
+              break;
         }
 
-        //  SEND SERIAL
-        if ((loop_count % 1) == 0) {
-            buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
-            // buildEncodePacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
+        //  SENSOR DATA - MAIN
+        buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
+        {
+          int packet_rle_size = 0;
+          if( false == encodePacketToRle(packetBuf, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size) ) {
+            Serial.printf("encoding fail \n");
+          }
 
-            sendSerial(packetBuf, PACKET_LEN);
+          int packet_dec_size = 0;
+          if( false == decodePacketToRle(packetBufEnc, packetBufDec, packet_dec_size) ) {
+            Serial.printf("decoding fail \n");
+          }
+
+          if( false == is_same_buf(packetBuf, packetBufDec, PACKET_LEN) ) {
+            Serial.printf("\n2 Codec error !! enc_size=%d, dec_size=%d \n", packet_rle_size, packet_dec_size);
+
+            // Serial.printf("-- original buf \n");
+            // printPacket(packetBuf, PACKET_LEN);
+            // Serial.printf("-- encoded buf, enc_size = %d \n", packet_rle_size);
+            // printPacket(packetBufEnc, packet_rle_size);
+            // Serial.printf("-- decoded buf \n");
+            // printPacket(packetBufDec, PACKET_LEN);
+            delay(1000);
+          }
         }
+        // sendPacket(packetBuf, PACKET_LEN);
+        sendPacket(packetBufDec, PACKET_LEN);
+
         adc_scan_done = false;
-
         deliver_count_main++;
-
     }  // while
 }
 
-void sendSerial(byte *packet_buffer, int packet_len) {
-    //  send data to the PC
-    Serial.write(packet_buffer, packet_len);
-
+void printPacket(byte *packet_buffer, int packet_len) {
     //  log all data.
-    if (false) {
-        Serial.printf("\nloop=%d [s=%d, l=%d]\n", loop_count, packet_buffer[0], packet_buffer[packet_len - 1]);
-        int offset = 0;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d \n", offset, packet_buffer[offset]);
-        offset++;
+    int offset = 0;
+    Serial.printf("loop=%d [s=%d, l=%d]\n", loop_count, packet_buffer[offset], packet_buffer[packet_len - 1]);
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d  \n", offset, packet_buffer[offset]);
+    offset++;
 
-        Serial.printf(" adc data length : %d \n", (MUX_LIST_LEN * NUM_MUX_OUT));
+    int body_len = packet_buffer[4];
+    Serial.printf(" adc data length : %d \n", body_len);
 
-        for (int mux_id = (MUX_LIST_LEN - 1); 0 <= mux_id; mux_id--) {
-            Serial.printf("[mux:%2d] ", mux_id);
+    if((MUX_LIST_LEN * NUM_MUX_OUT) == body_len) {
+      for (int mux_id = (MUX_LIST_LEN - 1); 0 <= mux_id; mux_id--) {
+          Serial.printf("[mux:%2d] ", mux_id);
 
-            for (int i = 0; i < NUM_MUX_OUT; i++) {
-                Serial.printf("%3d,", packet_buffer[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
-            }
-            Serial.println("~");
-        }
+          for (int i = 0; i < NUM_MUX_OUT; i++) {
+              Serial.printf("%3d,", packet_buffer[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
+          }
+          Serial.println("~");
+      }
 
-        offset += (MUX_LIST_LEN * NUM_MUX_OUT);
-        Serial.printf(" [%d] %3d", offset, packet_buffer[offset]);
-        offset++;
-        Serial.printf(" [%d] %3d \n", offset, packet_buffer[offset]);
-        offset++;
-
+      offset += (MUX_LIST_LEN * NUM_MUX_OUT);
     }
+    else {
+      for(int i = 0 ; i < body_len ; i++ ) {
+        Serial.printf("%3d,", packet_buffer[HEADER_LEN + i]);
+        if( ((i + 1) % 16) == 0 ) 
+          Serial.println("~");
+      }
+
+      offset += body_len;
+    }
+
+
+    Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
+    offset++;
+    Serial.printf("[%d] %3d  \n", offset, packet_buffer[offset]);
+    offset++;
+}
+
+
+void sendPacket(byte *packet_buffer, int packet_len) {
+  //  send data to the PC
+  Serial.write(packet_buffer, packet_len);
+
+  //  log all data.
+  // printPacket(packet_buffer, packet_len);
 }
 
 void sendBLE(byte *packet_buffer, int packet_len) {

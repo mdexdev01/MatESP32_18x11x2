@@ -2,9 +2,11 @@
 
 //-------------------------------------
 #define SRC_BUF_SIZE (500 + 5)
+#define ENC_BUF_SIZE (500 + 5)
+#define DEC_BUF_SIZE (500 + 5)
 uint8_t ori_buffer[SRC_BUF_SIZE];
-uint8_t enc_buffer[SRC_BUF_SIZE];
-uint8_t dec_buffer[SRC_BUF_SIZE];
+uint8_t enc_buffer[ENC_BUF_SIZE];
+uint8_t dec_buffer[DEC_BUF_SIZE];
 
 int enc_count = 0;
 
@@ -15,7 +17,7 @@ void rle_test() {
     make_buffer();
 
     // rle_encode(uint8_t *in, int in_size, uint8_t *out, int out_size)
-    int enc_size = rle_encode(ori_buffer, SRC_BUF_SIZE, enc_buffer, SRC_BUF_SIZE);
+    int enc_size = rle_encode(ori_buffer, SRC_BUF_SIZE, enc_buffer, ENC_BUF_SIZE);
 
     Serial.printf("---- enc size = %d ---- \n", enc_size);
     Serial.println("ori buffer");
@@ -27,7 +29,7 @@ void rle_test() {
     }
 
     Serial.println("enc buffer");
-    for (int i = 0; i < SRC_BUF_SIZE; i++) {
+    for (int i = 0; i < ENC_BUF_SIZE; i++) {
         Serial.printf("0x%02x,", enc_buffer[i]);
         if (i % 10 == 9) {
             Serial.println("");
@@ -35,7 +37,7 @@ void rle_test() {
     }
 
     // rle_decode(uint8_t *in, int in_size, uint8_t *out, int out_size)
-    int dec_size = rle_decode(enc_buffer, enc_size, dec_buffer, SRC_BUF_SIZE);
+    int dec_size = rle_decode(enc_buffer, enc_size, dec_buffer, DEC_BUF_SIZE);
 
     Serial.printf("---- dec size = %d ---- \n", dec_size);
     Serial.println("enc buffer");
@@ -47,7 +49,7 @@ void rle_test() {
     }
 
     Serial.println("dec buffer");
-    for (int i = 0; i < SRC_BUF_SIZE; i++) {
+    for (int i = 0; i < DEC_BUF_SIZE; i++) {
         Serial.printf("%2d,", dec_buffer[i]);
         if (i % 10 == 9) {
             Serial.println("");
@@ -84,12 +86,26 @@ void make_buffer() {
 }
 
 bool is_same() {
-    for (int i = 0; i < SRC_BUF_SIZE; i++) {
-        if (ori_buffer[i] != dec_buffer[i]) {
-            return false;
-        }
-    }
-    return true;
+  for (int i = 0; i < SRC_BUF_SIZE; i++) {
+      if (ori_buffer[i] != dec_buffer[i]) {
+          return false;
+      }
+  }
+  return true;
+}
+
+
+bool is_same_buf(byte * buf1, byte * buf2, int buf_size ) {
+  if(50000 < buf_size) 
+    return false;
+  
+  for (int i = 0; i < buf_size; i++) {
+      if (buf1[i] != buf2[i]) {
+          return false;
+      }
+  }
+
+  return true;
 }
 
 /*

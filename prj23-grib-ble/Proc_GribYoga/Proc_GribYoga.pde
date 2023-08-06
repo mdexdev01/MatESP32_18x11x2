@@ -118,7 +118,7 @@ byte intToByte(int num32) {
 
 void setup() {
   // size(1920, 1080);
-  size(880, 1000);
+  size(650, 1000);
   window_size_x = 880;
   window_size_y = 1000;
 
@@ -131,7 +131,7 @@ void setup() {
   background(0, 0, 85); // (220, 80, 15) : dark blue, (0, 0, 100) : white
   //background(220, 80, 15);// : dark blue, (0, 0, 100) : white
 
-  textLog = new EditRect(1, 1, 300, 20);
+  textLog = new EditRect(1, 40, 250, 20);
   textLog.setTextLeftMargin(3);
   textLog.showString("Open serial port please....");
 
@@ -243,14 +243,13 @@ boolean readData_Grib() {
       if (available_len == 0) {
         countNull++;
       }
-      if (100 < countNull)
+      if (100 < countNull) {
         drawTextLog("Serial is not connected");
-
-        println("available only " + available_len);
+        println("Serial is not connected");
+      }
 
       delay(20);
       continue;
-
     }
 
 
@@ -259,7 +258,7 @@ boolean readData_Grib() {
     boolean good_packet = false;
     if(read_len == PACKET_LEN_TYPE0) {
         System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE0);
-        println("packet 0 good");
+        // println("packet 0 good");
         good_packet = true;
     }
     else {  //  else a 

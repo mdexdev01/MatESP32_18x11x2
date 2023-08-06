@@ -27,6 +27,12 @@
 
 byte packetBuf[PACKET_LEN];
 
+#define PACKET_ENC_LEN  (PACKET_LEN + 50)   // 50 : protect rle encoding overflow
+byte packetBufEnc[PACKET_ENC_LEN]; 
+
+#define PACKET_DEC_LEN  PACKET_ENC_LEN
+byte packetBufDec[PACKET_LEN]; // for test enc/dec
+
 //---------------------------------------------
 //  Protocol - Parcel
 // #define PARCEL_MUX_LEN 6
@@ -43,13 +49,16 @@ byte packetBuf[PACKET_LEN];
 
 #define BOARD_ID 0  // UART MASTER : 0, UART SLAVE : 1
 
+
+void sendPacket(byte *packet_buffer, int packet_len);
+
 byte trimVal8(byte raw_value) {
     byte value = 0;
     if (255 == raw_value) {
         value = VALID_VAL_MAX;
     } else if ((VALID_VAL_MAX - 1) <= raw_value) {
         value = VALID_VAL_MAX - 1;
-    } else if (raw_value < 4) {
+    } else if (raw_value < 0) {
         value = 0;
     } else {
         value = raw_value;
@@ -78,6 +87,76 @@ void buildPacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT]
 
     packet_buffer[pa_index++] = 0x00;       //  Reserved 2
     packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+}
+
+void buildPacket_Test(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
+    packet_buffer[0] = HEADER_SYNC;       // 0xFF
+    packet_buffer[1] = HEADER_SYNC;       // 0xFF
+    packet_buffer[2] = 0x00;              // Major Ver
+    packet_buffer[3] = 0x00;              // Minor Ver
+    packet_buffer[4] = (width * height);  // Packet body Len, width, height,
+    packet_buffer[5] = BOARD_ID;          // Board ID
+    packet_buffer[6] = 0x00;              // Reserved 0
+    packet_buffer[7] = 0x00;              // Reserved 1
+
+    int pa_index = HEADER_LEN;
+
+    for (int w = 0; w < width; w++) {
+        for (int h = 0; h < height; h++) {
+            packet_buffer[pa_index++] = trimVal8(w * height + h);
+        }
+    }
+
+    packet_buffer[pa_index++] = 0x00;       //  Reserved 2
+    packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+}
+
+//  it doesn't encodes full packet but only body.
+bool encodePacketToRle(byte *packet_buffer, int packet_len, byte *packet_rle_buf, int packet_rle_max_size, int &packet_rle_len) {
+  int major = packet_buffer[2];
+  int minor = packet_buffer[3];
+  int body_len = packet_buffer[4];
+  
+  packet_rle_len = rle_encode(packet_buffer + HEADER_LEN, packet_len - (HEADER_LEN + TAIL_LEN), 
+                              enc_buffer, ENC_BUF_SIZE);
+  if(packet_rle_len == -1) {
+    return false;
+  }
+
+  memcpy(packet_rle_buf, packet_buffer, HEADER_LEN);
+  packet_rle_buf[2] |= 0x01; // Orring 0b00000001, it means it's encoded packet
+  packet_rle_buf[4] = packet_rle_len;
+
+  memcpy(packet_rle_buf + (HEADER_LEN), enc_buffer, packet_rle_len);
+  memcpy(packet_rle_buf + (HEADER_LEN + packet_rle_len), packet_buffer + (HEADER_LEN + body_len), TAIL_LEN);
+
+  return true;
+}
+
+//  it doesn't decodes full packet but only body.
+bool decodePacketToRle(byte *packet_rle_buf, byte *packet_dec_buf, int &packet_dec_len) {
+  int major = packet_rle_buf[2];
+  int minor = packet_rle_buf[3];
+  int body_len = packet_rle_buf[4];
+  
+  if( (major & 0x01) == false )
+    return false;
+
+  int dec_len = rle_decode(packet_rle_buf + (HEADER_LEN), body_len, dec_buffer, DEC_BUF_SIZE);
+  if(dec_len == -1) {
+    return false;
+  }
+
+  packet_dec_len = HEADER_LEN + dec_len + TAIL_LEN;
+
+  memcpy(packet_dec_buf, packet_rle_buf, HEADER_LEN);
+  packet_dec_buf[2] &= ~(0x01); // Orring 0b00000001, it means it's encoded packet
+  packet_dec_buf[4] = dec_len;
+
+  memcpy(packet_dec_buf + (HEADER_LEN), dec_buffer, dec_len);
+  memcpy(packet_dec_buf + (HEADER_LEN + dec_len), packet_rle_buf + (HEADER_LEN + body_len), TAIL_LEN);
+
+  return true;
 }
 
 void buildEncodePacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
@@ -141,41 +220,17 @@ int deliverSlaveUart() {
         return -1;
     }
 
-    int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail);
+    // readBytesUntil(0xFE, , ) : It reads as far as just before 0xFE. It doesn't include 0xFE.
+    int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail); 
     int size_left = Serial1.available();
-
-/*
-    if( (packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC) ) {
-      Serial1.readBytes(&packetBufSlave[size_read], 1);
-
-      Serial.printf("\nloop=%d, avail=%d, read=%d, left=%d, %d} \n", deliver_count_slave,
-                size_avail, size_read, size_left, PARCEL_LEN);
-      Serial.printf("header8 [%d, %d, %d, %d : %d, %d, %d, %d]\n",
-                packetBufSlave[0], packetBufSlave[1],
-                packetBufSlave[2], packetBufSlave[3],
-                packetBufSlave[4], packetBufSlave[5],
-                packetBufSlave[6], packetBufSlave[7]);
-      Serial.printf("tail2 [%d, %d, %d, %d]\n"  ,
-                  packetBufSlave[PARCEL_LEN -4], packetBufSlave[PARCEL_LEN -3],
-                  packetBufSlave[PARCEL_LEN -2], packetBufSlave[PARCEL_LEN -1]);
-
-      for(int mux_id = (MUX_LIST_LEN - 1) ; 0 <= mux_id ; mux_id--) {
-        Serial.printf("[mux:%2d] ", mux_id);
-
-        //for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
-        for (int i = 0 ; i < NUM_MUX_OUT ; i++) {
-          Serial.printf("%3d, ", packetBufSlave[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
-        }
-        Serial.println("~");
-      }
-    }
-*/
-
 
     if ((packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC)) {
         packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC;
-        sendSerial(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+        sendPacket(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
         // Serial.write(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+
+        // Serial.printf("-- Slave buf \n");
+        // printPacket(packetBufSlave, size_avail);
     }
 
     size_left = Serial1.available();

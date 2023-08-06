@@ -81,15 +81,14 @@ PImage    bgi_logo_mdex; // Background image
 
 void setup_UI() {
 
-  bgi_logo_120ch = loadImage("./res/logo_Yoga.png");
-  //image(bgi_logo_120ch, window_size_x - 100, 3, 70, 70);
-  image(bgi_logo_120ch, window_size_x - 350, -25);
-  // image(bgi_logo_120ch, 600, 15);
+  bgi_logo_120ch = loadImage("./res/logo_Title.png");
+  // image(bgi_logo_120ch, window_size_x - 350, -25);
+  image(bgi_logo_120ch, 15, -25);
 
 
   bgi_logo_mdex = loadImage("./res/logo_mdex(kor).png");
   //image(bgi_logo_mdex, window_size_x - 100, 3 + 60, 70, 70);
-  image(bgi_logo_mdex, window_size_x - 180, 60);
+  // image(bgi_logo_mdex, window_size_x - 180, 60);
 
   setup_Timer();
   setup_cp5();
@@ -117,14 +116,14 @@ void setup_cp5() {
   //  SERIAL PORT
   {
     // pos_x = window_width / 2 - 180;
-    pos_x = 310;
-    pos_y = 1;
+    pos_x = 360;
+    pos_y = 35;
 
     cp5.addTextlabel("label_Serial")
                       .setText("Serial Port :")
                       .setPosition(pos_x, pos_y)
                       .setColorValue(0xff555555)
-                      .setFont(createFont("Tahoma",14))
+                      .setFont(createFont("Arial",14))
                       //.setFont(font_small)
                       ;
     
@@ -147,13 +146,13 @@ void setup_cp5() {
   //  SCREEN SHOT, SAVE CSV
   {
     // pos_x = window_size_x - 650;
-    pos_x = 140;
+    pos_x = 15;
     pos_y = window_size_y - 180;
     cp5.addButton("Screen shot").setPosition(pos_x, pos_y).setSize(200, 70)
                     .setLabel("Screen shot").setFont(font_mid);
 
     pos_x += 300;
-    cp5.addButton(CSV_BTN_TAG).setPosition(pos_x, pos_y).setSize(300, 70)
+    cp5.addButton(CSV_BTN_TAG).setPosition(pos_x, pos_y).setSize(200, 70)
                     .setLabel(CSV_BTN_FALSE).setFont(font_mid);
 
     csv_btn_state = false;
@@ -164,30 +163,30 @@ void setup_cp5() {
   //----------------------------------------
   //  FILE NAME
   {
-    pos_x = 20;
+    pos_x = 5;
     pos_y = window_size_y - 70;
 
     int control_width = 0;
     
-    control_width = 100;
+    control_width = 90;
     cp5.addTextlabel("tag_FILENAME")
-                      .setText("File Name (Eng) : ")
+                      .setText("File Name(Eng) :")
                       .setPosition(pos_x, pos_y)
                       .setColorValue(0xff0060ff)
                       .setFont(font_small)
                       ;
 
-    pos_x += control_width + 30;
-    control_width = 190;
+    pos_x += control_width + 25;
+    control_width = 180;
     cp5.addTextfield("NAME")
         .setPosition(pos_x, pos_y).setSize(control_width-50, 25)
-        .setText("N")
+        .setText("John Doe")
         .setFont(font_small)
         .setColor(color(0, 0, 100))
         ;
     
     pos_x += control_width - 35;
-    control_width = 100;
+    control_width = 70;
     cp5.addTextfield("GENDER")
         .setPosition(pos_x, pos_y).setSize(control_width, 25)
         .setText("FEMALE")
@@ -196,7 +195,7 @@ void setup_cp5() {
         ;
 
     pos_x += control_width + 20;
-    control_width = 50;
+    control_width = 40;
     cp5.addTextfield("AGE")
         .setPosition(pos_x, pos_y).setSize(control_width, 25)
         .setText("1")
@@ -215,7 +214,7 @@ void setup_cp5() {
 
     pos_x += control_width + 30;
     control_width = 80;
-    cp5.addTextfield("FOOT SIZE (MM)")
+    cp5.addTextfield("HEIGHT (CM)")
         .setPosition(pos_x, pos_y).setSize(control_width, 25)
         .setText("1")
         .setFont(font_small)
@@ -365,7 +364,7 @@ void update_UI() {
     text_field = "_W" + cp5.get(Textfield.class, "WEIGHT (KG)").getText();
     strFileInfo += text_field;
     
-    text_field = "_L" + cp5.get(Textfield.class, "FOOT LENGTH (MM)").getText();
+    text_field = "_L" + cp5.get(Textfield.class, "HEIGHT (CM)").getText();
     strFileInfo += text_field;
     
     
