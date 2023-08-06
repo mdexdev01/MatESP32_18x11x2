@@ -51,6 +51,7 @@ byte packetBufDec[PACKET_LEN]; // for test enc/dec
 
 
 void sendPacket(byte *packet_buffer, int packet_len);
+void sendBLE(byte *packet_buffer, int packet_len);
 
 byte trimVal8(byte raw_value) {
     byte value = 0;
@@ -225,12 +226,15 @@ int deliverSlaveUart() {
     int size_left = Serial1.available();
 
     if ((packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC)) {
-        packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC;
-        sendPacket(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
-        // Serial.write(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+        packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC; // add 0xFE
 
-        // Serial.printf("-- Slave buf \n");
-        // printPacket(packetBufSlave, size_avail);
+        int packet_rle_size = 0;
+        if( false == encodePacketToRle(packetBufSlave, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size) ) {
+          Serial.printf("encoding fail - slave \n");
+        }
+
+        sendPacket(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
+        sendBLE(packetBufEnc, packet_rle_size);
     }
 
     size_left = Serial1.available();

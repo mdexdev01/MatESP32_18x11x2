@@ -16,6 +16,7 @@
 */
 
 #include "commPacket.h"
+#include "lib_ble_grib.h"
 
 TaskHandle_t Task_Core0;
 #define CORE_0 0
@@ -68,7 +69,8 @@ void loop() {
 
         delay(1);
     }
-
+    
+    loop_advGrib();
     loop_count++;
 }
 
@@ -128,11 +130,13 @@ void pumpSerial(void *pParam) {
             // printPacket(packetBufEnc, packet_rle_size);
             // Serial.printf("-- decoded buf \n");
             // printPacket(packetBufDec, PACKET_LEN);
-            delay(1000);
+            delay(500);
           }
         }
+        
         // sendPacket(packetBuf, PACKET_LEN);
-        sendPacket(packetBufDec, PACKET_LEN);
+        sendPacket(packetBuf, PACKET_LEN);
+        sendBLE(packetBufEnc, PACKET_LEN);
 
         adc_scan_done = false;
         deliver_count_main++;
@@ -196,10 +200,17 @@ void printPacket(byte *packet_buffer, int packet_len) {
 void sendPacket(byte *packet_buffer, int packet_len) {
   //  send data to the PC
   Serial.write(packet_buffer, packet_len);
-
   //  log all data.
   // printPacket(packet_buffer, packet_len);
+
 }
 
 void sendBLE(byte *packet_buffer, int packet_len) {
+  if(false == bleConnected) {
+    return;
+  }
+  
+  pCharacteristic->setValue(packet_buffer, (size_t)packet_len);
+  pCharacteristic->notify();
+
 }
