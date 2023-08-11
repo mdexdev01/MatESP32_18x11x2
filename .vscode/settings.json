@@ -11,7 +11,8 @@
 		"xlocmon": "cpp",
 		"xlocnum": "cpp",
 		"xloctime": "cpp",
-		"xutility": "cpp"
+		"xutility": "cpp",
+		"map": "cpp"
 	},
 	"idf.portWin": "COM3"
 }
