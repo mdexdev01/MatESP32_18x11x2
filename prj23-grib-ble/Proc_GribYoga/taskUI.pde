@@ -332,7 +332,7 @@ void controlEvent(CallbackEvent event) {
         println("tag_COPI_L --> " + value);
         break;
     }
-    println("hander ended...");
+    println("ui handler ended...");
   }
 }
 

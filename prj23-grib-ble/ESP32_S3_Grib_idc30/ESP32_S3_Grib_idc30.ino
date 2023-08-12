@@ -13,6 +13,11 @@
   < Reference >
   MultiTask : https://blog.naver.com/PostView.naver?blogId=crucian2k3&logNo=222069416341&parentCategoryNo=&categoryNo=58&viewDate=&isShowPopularPosts=true&from=search
 
+  < TODO >
+  1. Packet protocol document
+  2. Tx interval
+  3. No data, No Tx
+
 */
 
 #include "commPacket.h"
@@ -69,7 +74,7 @@ void loop() {
 
         delay(1);
     }
-    
+
     loop_advGrib();
     loop_count++;
 }
@@ -102,44 +107,46 @@ void pumpSerial(void *pParam) {
         //  true : deliver master + slave. false : deliver only master
         //  if partial packet mode, it delivers all the partial packets of a single full packet in a while loop.
         while (true) {
-          int ret_val = deliverSlaveUart();  // enable only for the Master
+            int ret_val = deliverSlaveUart();  // enable only for the Master
 
-          if (ret_val <= 0)
-              break;
+            if (ret_val <= 0)
+                break;
         }
 
         //  SENSOR DATA - MAIN
         buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
         {
-          int packet_rle_size = 0;
-          if( false == encodePacketToRle(packetBuf, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size) ) {
-            Serial.printf("encoding fail \n");
-          }
+            int packet_rle_size = 0;
+            if (false == encodePacketToRle(packetBuf, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size)) {
+                Serial.printf("encoding fail \n");
+            }
 
-          int packet_dec_size = 0;
-          if( false == decodePacketToRle(packetBufEnc, packetBufDec, packet_dec_size) ) {
-            Serial.printf("decoding fail \n");
-          }
+            int packet_dec_size = 0;
+            if (false == decodePacketToRle(packetBufEnc, packetBufDec, packet_dec_size)) {
+                Serial.printf("decoding fail \n");
+            }
 
-          if( false == is_same_buf(packetBuf, packetBufDec, PACKET_LEN) ) {
-            Serial.printf("\n2 Codec error !! enc_size=%d, dec_size=%d \n", packet_rle_size, packet_dec_size);
+            if (false == is_same_buf(packetBuf, packetBufDec, PACKET_LEN)) {
+                Serial.printf("\n2 Codec error !! enc_size=%d, dec_size=%d \n", packet_rle_size, packet_dec_size);
 
-            // Serial.printf("-- original buf \n");
-            // printPacket(packetBuf, PACKET_LEN);
-            // Serial.printf("-- encoded buf, enc_size = %d \n", packet_rle_size);
-            // printPacket(packetBufEnc, packet_rle_size);
-            // Serial.printf("-- decoded buf \n");
-            // printPacket(packetBufDec, PACKET_LEN);
-            delay(500);
-          }
+                // Serial.printf("-- original buf \n");
+                // printPacket(packetBuf, PACKET_LEN);
+                // Serial.printf("-- encoded buf, enc_size = %d \n", packet_rle_size);
+                // printPacket(packetBufEnc, packet_rle_size);
+                // Serial.printf("-- decoded buf \n");
+                // printPacket(packetBufDec, PACKET_LEN);
+                tempDelay(500);
+            }
         }
-        
+
         // sendPacket(packetBuf, PACKET_LEN);
         sendPacket(packetBuf, PACKET_LEN);
-        sendBLE(packetBufEnc, PACKET_LEN);
+        // sendBLERaw(packetBuf, PACKET_LEN);
 
         adc_scan_done = false;
         deliver_count_main++;
+        tempDelay(500);
+        // tempDelay(4000);
     }  // while
 }
 
@@ -167,28 +174,26 @@ void printPacket(byte *packet_buffer, int packet_len) {
     int body_len = packet_buffer[4];
     Serial.printf(" adc data length : %d \n", body_len);
 
-    if((MUX_LIST_LEN * NUM_MUX_OUT) == body_len) {
-      for (int mux_id = (MUX_LIST_LEN - 1); 0 <= mux_id; mux_id--) {
-          Serial.printf("[mux:%2d] ", mux_id);
+    if ((MUX_LIST_LEN * NUM_MUX_OUT) == body_len) {
+        for (int mux_id = (MUX_LIST_LEN - 1); 0 <= mux_id; mux_id--) {
+            Serial.printf("[mux:%2d] ", mux_id);
 
-          for (int i = 0; i < NUM_MUX_OUT; i++) {
-              Serial.printf("%3d,", packet_buffer[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
-          }
-          Serial.println("~");
-      }
+            for (int i = 0; i < NUM_MUX_OUT; i++) {
+                Serial.printf("%3d,", packet_buffer[HEADER_LEN + mux_id * NUM_MUX_OUT + i]);
+            }
+            Serial.println("~");
+        }
 
-      offset += (MUX_LIST_LEN * NUM_MUX_OUT);
+        offset += (MUX_LIST_LEN * NUM_MUX_OUT);
+    } else {
+        for (int i = 0; i < body_len; i++) {
+            Serial.printf("%3d,", packet_buffer[HEADER_LEN + i]);
+            if (((i + 1) % 16) == 0)
+                Serial.println("~");
+        }
+
+        offset += body_len;
     }
-    else {
-      for(int i = 0 ; i < body_len ; i++ ) {
-        Serial.printf("%3d,", packet_buffer[HEADER_LEN + i]);
-        if( ((i + 1) % 16) == 0 ) 
-          Serial.println("~");
-      }
-
-      offset += body_len;
-    }
-
 
     Serial.printf("[%d] %3d ", offset, packet_buffer[offset]);
     offset++;
@@ -196,21 +201,57 @@ void printPacket(byte *packet_buffer, int packet_len) {
     offset++;
 }
 
-
 void sendPacket(byte *packet_buffer, int packet_len) {
-  //  send data to the PC
-  Serial.write(packet_buffer, packet_len);
-  //  log all data.
-  // printPacket(packet_buffer, packet_len);
-
+    //  send data to the PC
+    Serial.write(packet_buffer, packet_len);
+    //  log all data.
+    // printPacket(packet_buffer, packet_len);
 }
 
-void sendBLE(byte *packet_buffer, int packet_len) {
-  if(false == bleConnected) {
-    return;
-  }
-  
-  pCharacteristic->setValue(packet_buffer, (size_t)packet_len);
-  pCharacteristic->notify();
+byte tempBlePacket[500];
 
+int blePacketSeq = 0;
+void sendBLERaw(byte *packet_raw_buffer, int packet_len) {
+    if (false == bleConnected) {
+        return;
+    }
+    int packet_rle_len = rle_encode(packet_raw_buffer, packet_len,
+                                    enc_buffer, ENC_BUF_SIZE);
+    memcpy(tempBlePacket, &blePacketSeq, sizeof(int));
+    memcpy(tempBlePacket + sizeof(int), enc_buffer, packet_rle_len);
+
+    int packet_size = (size_t)packet_rle_len + sizeof(int);
+    pCharacteristic->setValue(tempBlePacket, packet_size);
+    pCharacteristic->notify();
+
+    /*
+      Serial.println("\nprint Enc");
+      printHexa(tempBlePacket, packet_size);
+      Serial.println("\nprint Ori");
+      printHexa(packet_raw_buffer, packet_len);
+    */
+
+    blePacketSeq++;
+}
+
+void printHexa(byte *hex_data, int hex_len) {
+    Serial.println("\npacket start");
+    for (int i = 0; i < hex_len; i++) {
+        Serial.printf("%02x", hex_data[i]);
+    }
+    Serial.println("\npacket end");
+}
+
+void sendBLE_div(byte *packet_buffer, int packet_len) {
+    if (false == bleConnected) {
+        return;
+    }
+
+    memcpy(tempBlePacket, &blePacketSeq, sizeof(int));
+    memcpy(tempBlePacket + sizeof(int), packet_buffer, packet_len);
+
+    pCharacteristic->setValue(tempBlePacket, (size_t)packet_len + sizeof(int));
+    pCharacteristic->notify();
+
+    blePacketSeq++;
 }

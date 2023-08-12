@@ -27,11 +27,11 @@
 
 byte packetBuf[PACKET_LEN];
 
-#define PACKET_ENC_LEN  (PACKET_LEN + 50)   // 50 : protect rle encoding overflow
-byte packetBufEnc[PACKET_ENC_LEN]; 
+#define PACKET_ENC_LEN (PACKET_LEN + 50)  // 50 : protect rle encoding overflow
+byte packetBufEnc[PACKET_ENC_LEN];
 
-#define PACKET_DEC_LEN  PACKET_ENC_LEN
-byte packetBufDec[PACKET_LEN]; // for test enc/dec
+#define PACKET_DEC_LEN PACKET_ENC_LEN
+byte packetBufDec[PACKET_LEN];  // for test enc/dec
 
 //---------------------------------------------
 //  Protocol - Parcel
@@ -49,9 +49,9 @@ byte packetBufDec[PACKET_LEN]; // for test enc/dec
 
 #define BOARD_ID 0  // UART MASTER : 0, UART SLAVE : 1
 
-
 void sendPacket(byte *packet_buffer, int packet_len);
 void sendBLE(byte *packet_buffer, int packet_len);
+void sendBLERaw(byte *packet_raw_buffer, int packet_len);
 
 byte trimVal8(byte raw_value) {
     byte value = 0;
@@ -114,50 +114,50 @@ void buildPacket_Test(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX
 
 //  it doesn't encodes full packet but only body.
 bool encodePacketToRle(byte *packet_buffer, int packet_len, byte *packet_rle_buf, int packet_rle_max_size, int &packet_rle_len) {
-  int major = packet_buffer[2];
-  int minor = packet_buffer[3];
-  int body_len = packet_buffer[4];
-  
-  packet_rle_len = rle_encode(packet_buffer + HEADER_LEN, packet_len - (HEADER_LEN + TAIL_LEN), 
-                              enc_buffer, ENC_BUF_SIZE);
-  if(packet_rle_len == -1) {
-    return false;
-  }
+    int major = packet_buffer[2];
+    int minor = packet_buffer[3];
+    int body_len = packet_buffer[4];
 
-  memcpy(packet_rle_buf, packet_buffer, HEADER_LEN);
-  packet_rle_buf[2] |= 0x01; // Orring 0b00000001, it means it's encoded packet
-  packet_rle_buf[4] = packet_rle_len;
+    packet_rle_len = rle_encode(packet_buffer + HEADER_LEN, packet_len - (HEADER_LEN + TAIL_LEN),
+                                enc_buffer, ENC_BUF_SIZE);
+    if (packet_rle_len == -1) {
+        return false;
+    }
 
-  memcpy(packet_rle_buf + (HEADER_LEN), enc_buffer, packet_rle_len);
-  memcpy(packet_rle_buf + (HEADER_LEN + packet_rle_len), packet_buffer + (HEADER_LEN + body_len), TAIL_LEN);
+    memcpy(packet_rle_buf, packet_buffer, HEADER_LEN);
+    packet_rle_buf[2] |= 0x01;  // Orring 0b00000001, it means it's encoded packet
+    packet_rle_buf[4] = packet_rle_len;
 
-  return true;
+    memcpy(packet_rle_buf + (HEADER_LEN), enc_buffer, packet_rle_len);
+    memcpy(packet_rle_buf + (HEADER_LEN + packet_rle_len), packet_buffer + (HEADER_LEN + body_len), TAIL_LEN);
+
+    return true;
 }
 
 //  it doesn't decodes full packet but only body.
 bool decodePacketToRle(byte *packet_rle_buf, byte *packet_dec_buf, int &packet_dec_len) {
-  int major = packet_rle_buf[2];
-  int minor = packet_rle_buf[3];
-  int body_len = packet_rle_buf[4];
-  
-  if( (major & 0x01) == false )
-    return false;
+    int major = packet_rle_buf[2];
+    int minor = packet_rle_buf[3];
+    int body_len = packet_rle_buf[4];
 
-  int dec_len = rle_decode(packet_rle_buf + (HEADER_LEN), body_len, dec_buffer, DEC_BUF_SIZE);
-  if(dec_len == -1) {
-    return false;
-  }
+    if ((major & 0x01) == false)
+        return false;
 
-  packet_dec_len = HEADER_LEN + dec_len + TAIL_LEN;
+    int dec_len = rle_decode(packet_rle_buf + (HEADER_LEN), body_len, dec_buffer, DEC_BUF_SIZE);
+    if (dec_len == -1) {
+        return false;
+    }
 
-  memcpy(packet_dec_buf, packet_rle_buf, HEADER_LEN);
-  packet_dec_buf[2] &= ~(0x01); // Orring 0b00000001, it means it's encoded packet
-  packet_dec_buf[4] = dec_len;
+    packet_dec_len = HEADER_LEN + dec_len + TAIL_LEN;
 
-  memcpy(packet_dec_buf + (HEADER_LEN), dec_buffer, dec_len);
-  memcpy(packet_dec_buf + (HEADER_LEN + dec_len), packet_rle_buf + (HEADER_LEN + body_len), TAIL_LEN);
+    memcpy(packet_dec_buf, packet_rle_buf, HEADER_LEN);
+    packet_dec_buf[2] &= ~(0x01);  // Orring 0b00000001, it means it's encoded packet
+    packet_dec_buf[4] = dec_len;
 
-  return true;
+    memcpy(packet_dec_buf + (HEADER_LEN), dec_buffer, dec_len);
+    memcpy(packet_dec_buf + (HEADER_LEN + dec_len), packet_rle_buf + (HEADER_LEN + body_len), TAIL_LEN);
+
+    return true;
 }
 
 void buildEncodePacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
@@ -211,6 +211,10 @@ byte packetBufSlave[PACKET_LEN * 5];  // * 5 for overflow
 
 int deliver_count_slave = 0;
 
+void tempDelay(int time_len_ms) {
+    delay(time_len_ms);
+}
+
 int deliverSlaveUart() {
     int size_avail = Serial1.available();
     if (size_avail == 0) {
@@ -222,24 +226,30 @@ int deliverSlaveUart() {
     }
 
     // readBytesUntil(0xFE, , ) : It reads as far as just before 0xFE. It doesn't include 0xFE.
-    int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail); 
+    int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail);
     int size_left = Serial1.available();
 
     if ((packetBufSlave[0] == HEADER_SYNC) && (packetBufSlave[1] == HEADER_SYNC)) {
-        packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC; // add 0xFE
+        packetBufSlave[PARCEL_LEN - 1] = TAIL_SYNC;  // add 0xFE
 
         int packet_rle_size = 0;
-        if( false == encodePacketToRle(packetBufSlave, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size) ) {
-          Serial.printf("encoding fail - slave \n");
+        if (false == encodePacketToRle(packetBufSlave, PACKET_LEN, packetBufEnc, PACKET_ENC_LEN, packet_rle_size)) {
+            Serial.printf("encoding fail - slave \n");
         }
 
         sendPacket(packetBufSlave, (HEADER_LEN + packetBufSlave[4] + TAIL_LEN));
-        sendBLE(packetBufEnc, packet_rle_size);
+        // sendBLERaw(packetBufSlave, PACKET_LEN);
     }
 
     size_left = Serial1.available();
-    if(PARCEL_LEN * 8 < size_left)
-      Serial1.readBytes(packetBufSlave, size_left);
+    if (PARCEL_LEN * 8 < size_left)
+        Serial1.readBytes(packetBufSlave, size_left);
+
+    for (int i = 0; i < 50; i++) {
+        tempDelay(10);
+        size_left = Serial1.available();
+        Serial1.readBytes(packetBufSlave, size_left);
+    }
 
     deliver_count_slave++;
 
