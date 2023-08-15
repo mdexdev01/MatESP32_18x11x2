@@ -16,18 +16,17 @@ https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/src/BLEAdve
    4. wait
    5. Stop advertising.
 */
+#include <BLE2902.h>
+#include <BLEBeacon.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
-#include <BLEBeacon.h>
+
 #include "esp_bt_device.h"
 
-
-#define DEVICE_NAME       "Grib"
-#define SERVICE_UUID      "bdfa6743-eb30-4139-80f8-e016adffe2d1" // for Grib
-#define PROPERTY_UUID     "bdfa6743-eb30-4139-80f8-e016adffe2d2"
-
+#define DEVICE_NAME "Grib"
+#define SERVICE_UUID "bdfa6743-eb30-4139-80f8-e016adffe2d1"  // for Grib
+#define PROPERTY_UUID "bdfa6743-eb30-4139-80f8-e016adffe2d2"
 
 // #define DEVICE_NAME            "Grib"
 // #define SERVICE_UUID           "7A0247E7-8E88-409B-A959-AB5092DDB03E"
@@ -35,8 +34,8 @@ https://github.com/espressif/arduino-esp32/blob/master/libraries/BLE/src/BLEAdve
 // #define BEACON_UUID_REV        "A134D0B2-1DA2-1BA7-C94C-E8E00C9F7A2D"
 // #define CHARACTERISTIC_UUID    "82258BAA-DF72-47E8-99BC-B73D7ECD08A5"
 
-BLEServer *pServer;
-BLECharacteristic *pCharacteristic;
+BLEServer* pServer;
+BLECharacteristic* pCharacteristic;
 
 bool bleConnected = false;
 int32_t value = 0;
@@ -91,7 +90,7 @@ void init_service() {
             // BLECharacteristic::PROPERTY_INDICATE |
             BLECharacteristic::PROPERTY_READ);
     pCharacteristic->setCallbacks(new MyCallbacks());
-    pCharacteristic->addDescriptor(new BLE2902()); // cccd, enable 'notify'
+    pCharacteristic->addDescriptor(new BLE2902());  // cccd, enable 'notify'
 
     pAdvertising->addServiceUUID(BLEUUID(SERVICE_UUID));
 
@@ -101,6 +100,7 @@ void init_service() {
     pAdvertising->start();
 }
 
+uint8_t bleMacAddr[6];
 void init_beacon() {
     BLEAdvertising* pAdvertising;
     pAdvertising = pServer->getAdvertising();
@@ -118,7 +118,8 @@ void init_beacon() {
 
     // advertisementData.setManufacturerData(myBeacon.getData());
     {
-        const uint8_t* point = esp_bt_dev_get_address();
+        const uint8_t* mac_addr = esp_bt_dev_get_address();
+        memcpy(bleMacAddr, mac_addr, 6);
 
         byte manufacturer_specific_data[6];
         int offset = 0;
@@ -127,9 +128,9 @@ void init_beacon() {
         manufacturer_specific_data[offset++] = 0x52;
         manufacturer_specific_data[offset++] = 0x47;
         manufacturer_specific_data[offset++] = 0x04;
-        manufacturer_specific_data[offset++] = point[3];
-        manufacturer_specific_data[offset++] = point[4];
-        manufacturer_specific_data[offset++] = point[5];
+        manufacturer_specific_data[offset++] = bleMacAddr[3];
+        manufacturer_specific_data[offset++] = bleMacAddr[4];
+        manufacturer_specific_data[offset++] = bleMacAddr[5];
 
         // std::string((char*) &m_beaconData, sizeof(m_beaconData));
 
@@ -158,14 +159,14 @@ void setup_advGrib() {
 }
 
 uint8_t value8 = 0;
-void loop_advNotify() { /// only for testing function.
-  if (bleConnected) {
-      Serial.printf("*** NOTIFY: %d ***\n", value);
-      pCharacteristic->setValue(&value8, 1);
-      pCharacteristic->notify();
-      value8++;
-  }
-  delay(2000);
+void loop_advNotify() {  /// only for testing function.
+    if (bleConnected) {
+        //   Serial.printf("*** NOTIFY: %d ***\n", value);
+        pCharacteristic->setValue(&value8, 1);
+        pCharacteristic->notify();
+        value8++;
+    }
+    delay(2000);
 }
 
 #define TX_PACKET_SIZE (16 * 11 + 4)
@@ -173,38 +174,33 @@ uint8_t tx_data[TX_PACKET_SIZE];
 
 void loop_advGrib() {
     if (bleConnected) {
+    } else {
     }
-    else {
-      
-    }
-
 }
 
-
 void loop_advGrib_old() {
-  if (bleConnected) {
-      // Serial.printf("*** NOTIFY: %d ***\n", value);
-      // pCharacteristic->setValue(&value, 1);
+    if (bleConnected) {
+        // Serial.printf("*** NOTIFY: %d ***\n", value);
+        // pCharacteristic->setValue(&value, 1);
 
-      uint16_t mtuSize = BLEDevice::getMTU();
-      // Serial.printf("Negotiated MTU size: %d \n", mtuSize);
+        uint16_t mtuSize = BLEDevice::getMTU();
+        // Serial.printf("Negotiated MTU size: %d \n", mtuSize);
 
-      memcpy(tx_data, &value, 4);
-      for (int i = 4; i < TX_PACKET_SIZE; i++) {
-          tx_data[i] = (i % 100);
-      }
+        memcpy(tx_data, &value, 4);
+        for (int i = 4; i < TX_PACKET_SIZE; i++) {
+            tx_data[i] = (i % 100);
+        }
 
-      if( (value % 2) == 0) {
-        pCharacteristic->setValue(tx_data, (size_t)TX_PACKET_SIZE);
-        pCharacteristic->notify();
-      }
-      else {
-        pCharacteristic->setValue(tx_data, (size_t)mtuSize);
-        pCharacteristic->notify();
-      }
+        if ((value % 2) == 0) {
+            pCharacteristic->setValue(tx_data, (size_t)TX_PACKET_SIZE);
+            pCharacteristic->notify();
+        } else {
+            pCharacteristic->setValue(tx_data, (size_t)mtuSize);
+            pCharacteristic->notify();
+        }
 
-      value++;
-  } else {
-      // Serial.printf("*** Advertising: %d ***\n", value);
-  }
+        value++;
+    } else {
+        // Serial.printf("*** Advertising: %d ***\n", value);
+    }
 }
