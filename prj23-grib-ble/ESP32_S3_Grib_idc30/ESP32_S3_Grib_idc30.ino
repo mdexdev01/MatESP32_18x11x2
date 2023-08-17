@@ -38,8 +38,6 @@ TaskHandle_t Task_Core0;
 #define CORE_0 0
 #define CORE_1 1
 
-int blePacketSeq = 0;
-
 void setup() {
     Serial.setTxBufferSize(SERIAL_SIZE_TX);
     Serial.begin(BAUD_RATE);
@@ -149,7 +147,7 @@ void pumpSerial(void *pParam) {
 
 void sendPacket(byte *packet_buffer, int packet_len) {
     //  send data to the PC
-    // Serial.write(packet_buffer, packet_len);
+    Serial.write(packet_buffer, packet_len);
 
     //  log all data.
     // printPacket(packet_buffer, packet_len);
@@ -188,11 +186,10 @@ bool isBleSendTime() {
     return false;
 }
 
-#define BASKET_LEN (PACKET_LEN * 2)
 byte packetBasket[BASKET_LEN];
 #define ENC_BASKET_LEN (PACKET_LEN * 2 + 100)
 byte EncBasket[ENC_BASKET_LEN];  // 100 : protect ble encoding buffer overflow...
-byte blePacketGrib[BASKET_LEN + 100];
+// byte blePacketGrib[BASKET_LEN + 100];
 
 void sendBLEGrib(byte *packet_raw_buffer, int packet_len) {
     if (false == bleConnected) {
@@ -234,6 +231,7 @@ void sendBLEGrib(byte *packet_raw_buffer, int packet_len) {
     pCharacteristic->setValue(blePacketGrib, ble_packet_size);
     pCharacteristic->notify();
 
+    if (false)  // for only debugging
     {
         //  Raw Data        {"id": "fe0f99", "seq": 1280, "data": "0005000086ffff00~0000fe"}
         Serial.printf("Raw Data\t{\"id\": \"%02x%02x%02x\", \"seq\": %d, \"data\": \"", bleMacAddr[3], bleMacAddr[4], bleMacAddr[5], blePacketSeq);

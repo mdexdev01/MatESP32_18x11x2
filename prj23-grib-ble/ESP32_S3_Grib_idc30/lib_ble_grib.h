@@ -74,6 +74,11 @@ class MyCallbacks : public BLECharacteristicCallbacks {
     }
 };
 
+#define BASKET_LEN (PACKET_LEN * 2)
+
+int blePacketSeq = 0;
+byte blePacketGrib[BASKET_LEN + 100];
+
 void init_service() {
     BLEAdvertising* pAdvertising;
     pAdvertising = pServer->getAdvertising();
@@ -91,7 +96,16 @@ void init_service() {
             BLECharacteristic::PROPERTY_READ);
     pCharacteristic->setCallbacks(new MyCallbacks());
     pCharacteristic->addDescriptor(new BLE2902());  // cccd, enable 'notify'
+    {
+        int ble_packet_size = 8;
+        memcpy(blePacketGrib, &blePacketSeq, sizeof(int));
+        blePacketGrib[4] = 0;
+        blePacketGrib[5] = 0;
+        blePacketGrib[6] = 0;
+        blePacketGrib[7] = 0;
 
+        pCharacteristic->setValue(blePacketGrib, ble_packet_size);
+    }
     pAdvertising->addServiceUUID(BLEUUID(SERVICE_UUID));
 
     // Start the service
@@ -158,49 +172,11 @@ void setup_advGrib() {
     Serial.println("iBeacon + service defined and advertising!");
 }
 
-uint8_t value8 = 0;
-void loop_advNotify() {  /// only for testing function.
-    if (bleConnected) {
-        //   Serial.printf("*** NOTIFY: %d ***\n", value);
-        pCharacteristic->setValue(&value8, 1);
-        pCharacteristic->notify();
-        value8++;
-    }
-    delay(2000);
-}
-
 #define TX_PACKET_SIZE (16 * 11 + 4)
 uint8_t tx_data[TX_PACKET_SIZE];
 
 void loop_advGrib() {
     if (bleConnected) {
     } else {
-    }
-}
-
-void loop_advGrib_old() {
-    if (bleConnected) {
-        // Serial.printf("*** NOTIFY: %d ***\n", value);
-        // pCharacteristic->setValue(&value, 1);
-
-        uint16_t mtuSize = BLEDevice::getMTU();
-        // Serial.printf("Negotiated MTU size: %d \n", mtuSize);
-
-        memcpy(tx_data, &value, 4);
-        for (int i = 4; i < TX_PACKET_SIZE; i++) {
-            tx_data[i] = (i % 100);
-        }
-
-        if ((value % 2) == 0) {
-            pCharacteristic->setValue(tx_data, (size_t)TX_PACKET_SIZE);
-            pCharacteristic->notify();
-        } else {
-            pCharacteristic->setValue(tx_data, (size_t)mtuSize);
-            pCharacteristic->notify();
-        }
-
-        value++;
-    } else {
-        // Serial.printf("*** Advertising: %d ***\n", value);
     }
 }
