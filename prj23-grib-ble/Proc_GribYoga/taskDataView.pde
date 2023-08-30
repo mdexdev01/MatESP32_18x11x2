@@ -1,14 +1,5 @@
 //==========================================================
 //  CONFIG DATA VIEW
-
-DoubleArrayView foot_DataView;
-
-
-int [] foot_Data_L = new int [NUM_CELLS_COL * NUM_CELLS_ROW];
-int [] foot_Data_R = new int [NUM_CELLS_COL * NUM_CELLS_ROW];  
-int [] foot_Data_All = new int [NUM_CELLS_COL * NUM_CELLS_ROW * NUM_BLOCK];  
-
-
 String csvPath_CellPos_A = "./res/CellPos_Block_A.csv";
 String csvPath_CellPos_B = "./res/CellPos_Block_B.csv";
 
@@ -20,9 +11,6 @@ SensorCellView  MatDataView_D;
 
 
 void setup_EditView() {
-  //  1. DoubleArrayView - rect position and color  
-  foot_DataView = new DoubleArrayView(NUM_CELLS_COL, NUM_CELLS_ROW);
-
   //  load csv file - rect cell position. <left, top, width, height> of 31 rect
   Table     csvRectPos_U;
   Table     csvRectPos_D;
@@ -132,17 +120,17 @@ int parseData_GRIB(byte[] read_data) {
   // println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
 
   if(board_id == 0) {
-    parseData_TopLeftStart(read_data, major_ver, minor_ver, reserved_0, reserved_1);
+    parseData_TopRightStart(read_data);
     VB_Filled_Board0 = true;
     rx_count_board_0++;
   }
   else if(board_id == 1) {
-    parseData_BottomLeftStart(read_data, major_ver, minor_ver, reserved_0, reserved_1);
+    parseData_BottomLeftStart(read_data);
     rx_count_board_1++;
   }
 
   
-  return -1;
+  return 0;
 
 }
 
@@ -230,17 +218,14 @@ void compressTest_U() {
 }
 
 
-
-int parseData_TopLeftStart(byte[] read_data, int major_ver, int minor_ver, int start_x, int end_x) {
+int parseData_TopRightStart(byte[] read_data) {
   int offset = 0; 
 
-  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
+  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 10
     for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
 
       int xy_pos = x * NUM_CELLS_ROW + row;
-      int inv_pos = (NUM_CELLS_COL - x - 1) * NUM_CELLS_ROW + revIndex16(row);
-      // offset = xy_pos;
-      offset = inv_pos;
+      offset = (NUM_CELLS_COL - x - 1) * NUM_CELLS_ROW + (NUM_CELLS_ROW - row - 1);
 
       DataBuf_U[offset] = byteToInt(read_data[HEADER_LEN + xy_pos]);
 
@@ -249,18 +234,17 @@ int parseData_TopLeftStart(byte[] read_data, int major_ver, int minor_ver, int s
     }
   }
 
-  return -1;
+  return 0;
 }
 
 
 
-int parseData_BottomLeftStart(byte[] read_data, int major_ver, int minor_ver, int res_0, int res_1) {
+int parseData_BottomLeftStart(byte[] read_data) {
   int offset = 0; 
 
-  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 3~14
+  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 10
     for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
       int xy_pos = x * NUM_CELLS_ROW + row;
-      int inv_pos = x * NUM_CELLS_ROW + (NUM_CELLS_ROW - 1 ) - row;
 
       DataBuf_D[xy_pos] = byteToInt(read_data[HEADER_LEN + xy_pos]);
 
@@ -269,6 +253,6 @@ int parseData_BottomLeftStart(byte[] read_data, int major_ver, int minor_ver, in
     }
   }
 
-  return -1;
+  return 0;
 
 }

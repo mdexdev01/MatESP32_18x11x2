@@ -1,8 +1,8 @@
 //////////////////////////////////////////////////////////////////////
 //  CLASS  SensorCellView
 //////////////////////////////////////////////////////////////////////
-int revIndex16(int index) {
-  return (15 - index);
+int invIndex16(int index) {
+  return (NUM_CELLS_ROW - index - 1);
 }
 
 class SensorCellView {
@@ -114,7 +114,7 @@ class SensorCellView {
       for(int y = 0 ; y < numOfRow ; y++) {
         int y_offset = y_start + y * y_pitch;
         // int index = x * numOfRow + y;
-        int index = x * numOfRow + revIndex16(y);
+        int index = x * numOfRow + invIndex16(y);
 
         rect_left[index]    = x_offset;
         rect_width[index]   = x_width;
@@ -363,4 +363,4 @@ class SensorCellView {
   }
  
   
-} // End of SeatDataView class
+} // End of SensorCellView class

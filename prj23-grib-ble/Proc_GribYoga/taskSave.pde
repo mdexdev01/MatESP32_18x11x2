@@ -6,7 +6,7 @@ int BASE_0to1(int num) {
 }
 
 void setup_Save() {
-  saveDump_open();
+  // saveDump_open();
 
 }
 
@@ -32,7 +32,7 @@ void update_Save() {
   //  store data to csv file
   if(grant_interval == true) {
     saveCSV_storeData();
-    cp5.getController(CSV_BTN_TAG).setLabel(CSV_BTN_TRUE + ": (" + getElapsedTick_Timer() / 1000 + " sec)");
+    cp5.getController(CSV_BTN_TAG).setLabel(CSV_BTN_TRUE + " (" + getElapsedTick_Timer() / 1000 + " sec)");
 
     //println("tick(200ms) : " + cur_grant_tick + ", " + cur_tick);
   } 
@@ -105,16 +105,15 @@ void saveCSV_open() {
 
   for (int row = 0 ; row < row_max ; row++ ) {
     for (int col = 0 ; col < col_max ; col++ ) {
-      colName = "D-" + "C" + col + "-R" + row;
-      colName = "D-" + "C" + col + "-R" + row;
+      colName = "B-" + "X" + col + "-Y" + row;
       table.addColumn(colName);
     }
   }
 
   for (int row = 0 ; row < row_max ; row++ ) {
     for (int col = 0 ; col < col_max ; col++ ) {
-      // colName = "U-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
-      colName = "U-" + "C" + col + "-R" + row;
+      // colName = "T-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
+      colName = "T-" + "X" + col + "-Y" + row;
       table.addColumn(colName);
     }
   }
@@ -139,22 +138,24 @@ void saveCSV_storeData() {
   String colName; 
   String strIndex;
 
-  for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){
-    for(int col = 0 ; col < NUM_CELLS_COL ; col++) {
-      int xy_pos = row * NUM_CELLS_COL + col;
-      // colName = "D-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
-      colName = "D-" + "C" + col + "-R" + row;
+  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 0 ~ 10
+    for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
+      int xy_pos = x * NUM_CELLS_ROW + row;
+      // colName = "B-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
+      colName = "B-" + "X" + x + "-Y" + row;
       newRow.setInt(colName, DataBuf_D[xy_pos]);
+      // newRow.setInt(colName, xy_pos);
     }
   }
 
 
-  for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){
-    for(int col = 0 ; col < NUM_CELLS_COL ; col++) {
-      int xy_pos = row * NUM_CELLS_COL + col;
-      // colName = "U-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
-      colName = "U-" + "C" + col + "-R" + row;
+  for(int x = 0 ; x < NUM_CELLS_COL ; x++) {   //  NUM_CELLS_COL = 0 ~ 10
+    for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
+      int xy_pos = x * NUM_CELLS_ROW + row;
+      // colName = "T-" + "C" + BASE_0to1(col) + "-R" + BASE_0to1(row);
+      colName = "T-" + "X" + x + "-Y" + row;
       newRow.setInt(colName, DataBuf_U[xy_pos]);
+      // newRow.setInt(colName, xy_pos);
     }
   }
 

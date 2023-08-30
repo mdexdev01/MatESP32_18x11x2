@@ -140,7 +140,7 @@ void setup() {
 
   setup_EditView();
   setup_UI();
-  // setup_Save();
+  setup_Save();
 
   //========================================
   //  THREAD - UART
@@ -171,6 +171,9 @@ void draw() {
 
   if(flag_read == true) {
     sensor_frame_count++;
+
+    update_UI();
+    update_Save();
 
     flag_read = false;
   }
@@ -280,7 +283,7 @@ boolean readData_Grib() {
         for(int row = 0 ; row < NUM_CELLS_ROW ; row++ ){ //  NUM_CELLS_ROW = 16
     
           int xy_pos = x * NUM_CELLS_ROW + row;
-          int inv_pos = x * NUM_CELLS_ROW + revIndex16(row);
+          int inv_pos = x * NUM_CELLS_ROW + invIndex16(row);
           // DataBuf_U[inv_pos] = byteToInt(PacketRawData[HEADER_LEN + xy_pos]);
           DataBuf_U[xy_pos] = intToByte(PacketRawData[0 + xy_pos]);
         }

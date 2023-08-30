@@ -189,7 +189,7 @@ void setup_cp5() {
     control_width = 70;
     cp5.addTextfield("GENDER")
         .setPosition(pos_x, pos_y).setSize(control_width, 25)
-        .setText("FEMALE")
+        .setText("MALE")
         .setFont(font_small)
         .setColor(color(0, 0, 100))
         ;
@@ -249,13 +249,21 @@ String SerialNoteLabel = "(Number only)";
 
 String CSV_BTN_TAG    = "CSV_START_STOP";
 String CSV_BTN_FALSE  = "SAVE DATA";
-String CSV_BTN_TRUE   = "STOP SAVING";
+String CSV_BTN_TRUE   = "STOP";
 
 
 
 ///////////////////////////////////////////////////////////////////////////
 //    EVENT HANDLER
 ///////////////////////////////////////////////////////////////////////////
+void fileSelected(File selection) {
+  if (selection == null) {
+    println("Window was closed or the user hit cancel.");
+  } else {
+    println("User selected " + selection.getAbsolutePath());
+  }
+}
+
 
 void controlEvent(CallbackEvent event) {
   String strBuf;
@@ -324,6 +332,9 @@ void controlEvent(CallbackEvent event) {
         println(temp_str);
         saveFrame(temp_str);
         //cp5.getProperties().saveSnapshot("hello1");
+
+        // selectInput("Select a file to process:", "fileSelected");
+
         break;
         
       case "/tag_COPI_L":
