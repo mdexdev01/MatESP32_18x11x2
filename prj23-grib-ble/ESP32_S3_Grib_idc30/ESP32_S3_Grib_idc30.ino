@@ -170,15 +170,16 @@ bool isPassCutoff(byte *basket_buffer, int packet_len) {
     return false;
 }
 
+long BLE_TX_PERIOD_MS = 50;
 long saveTick = millis();
 bool timeCert = true;
 bool isBleSendTime() {
     long curTick = millis();
     long difTick = curTick - saveTick;
 
-    if (500 < difTick) {
+    if (BLE_TX_PERIOD_MS < difTick) {
         // Serial.printf("diff = %d, curTick = %d, saveTick = %d \n", difTick, curTick, saveTick);
-        saveTick += (500 * (difTick / 500));
+        saveTick += (BLE_TX_PERIOD_MS * (difTick / BLE_TX_PERIOD_MS));
         timeCert = true;
         return true;
     }
