@@ -252,6 +252,9 @@ int parseData_BottomLeftStart(byte[] read_data) {
         DataBuf_D[xy_pos] = 0;
     }
   }
+  
+  int compen_sum = (DataBuf_D[119] + DataBuf_D[121] + DataBuf_D[104] + DataBuf_D[136] ) / 4;
+  DataBuf_D[120] = compen_sum;
 
   return 0;
 

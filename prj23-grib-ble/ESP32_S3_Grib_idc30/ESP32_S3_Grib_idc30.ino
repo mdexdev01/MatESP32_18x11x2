@@ -196,15 +196,6 @@ void sendBLEGrib(byte *packet_raw_buffer, int packet_len) {
         return;
     }
 
-    //  if time interval is short, then don't send to save network cost.
-    if (false == isBleSendTime()) {
-        return;
-    } else {
-        timeCert = false;
-        // Serial.printf("curTick = %d \n", millis());
-    }
-    // Serial.printf("MY Data\t\t{\"id\": \"%02x%02x%02x\", \"seq\": %d, \"data\": \"", bleMacAddr[3], bleMacAddr[4], bleMacAddr[5], blePacketSeq);
-
     //  make basket buffer (basket buffer = top mat + bottom mat)
     int board_id = packet_raw_buffer[IDX_BOARD_ID];
 
@@ -219,6 +210,15 @@ void sendBLEGrib(byte *packet_raw_buffer, int packet_len) {
         // Serial.printf("cutoff packet \n");
         return;
     }
+
+    //  if time interval is short, then don't send to save network cost.
+    if (false == isBleSendTime()) {
+        return;
+    } else {
+        timeCert = false;
+        // Serial.printf("curTick = %d \n", millis());
+    }
+    // Serial.printf("MY Data\t\t{\"id\": \"%02x%02x%02x\", \"seq\": %d, \"data\": \"", bleMacAddr[3], bleMacAddr[4], bleMacAddr[5], blePacketSeq);
 
     //  rle encoding
     int packet_rle_len = rle_encode(packetBasket, BASKET_LEN,
