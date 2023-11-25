@@ -67,7 +67,9 @@ class LapTimer {
 
 };
 
-
+/**
+ *  @memo   https://processing.org/reference/day_.html
+ */
 String getCurTimeString() {
     int d = day();    // Values from 1 - 31
     int mo = month();  // Values from 1 - 12
@@ -78,6 +80,21 @@ String getCurTimeString() {
     int h = hour();    // Values from 0 - 23
 
     String time_string = String.format("%4d%02d%02d-%02d%02d%02d", y, mo, d, h, m, s);
+
+    return time_string;  
+}
+
+String getCurTimeString_ms() {
+    int d = day();    // Values from 1 - 31
+    int mo = month();  // Values from 1 - 12
+    int y = year();   // 2003, 2004, 2005, etc.
+
+    int ms = millis();  // Values from 0 - 59
+    int s = second();  // Values from 0 - 59
+    int m = minute();  // Values from 0 - 59
+    int h = hour();    // Values from 0 - 23
+
+    String time_string = String.format("%4d%02d%02d-%02d%02d%02d-%03d", y, mo, d, h, m, s, ms);
 
     return time_string;  
 }

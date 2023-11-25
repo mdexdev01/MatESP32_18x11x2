@@ -250,15 +250,15 @@ void controlEvent(CallbackEvent event) {
           csv_btn_state = true;
           event.getController().setLabel(CSV_BTN_TRUE);
 
-          saveCSV_open();          
+          DATA_SAVE_CSV_open();          
           timerSaveCSV.reset();
-          timerSaveCSV.cycleStart(SAVE_INTERVAL);
+          timerSaveCSV.cycleStart(SAVE_INTERVAL_MS);
         }
         else {    //  SAVE ENDS
           csv_btn_state = false;
           event.getController().setLabel(CSV_BTN_FALSE);
 
-          saveCSV_close();
+          DATA_SAVE_CSV_close();
         }
         break;
 

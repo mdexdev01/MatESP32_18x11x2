@@ -1,4 +1,4 @@
-int SAVE_INTERVAL = 500;
+int SAVE_INTERVAL_MS = 25;
 LapTimer timerSaveCSV;
 
 int BASE_0to1(int num) {
@@ -16,18 +16,20 @@ void update_Save() {
   
   //  check if satisfies interval
   if(true == timerSaveCSV.cycleTryCheckOut()) {
-    saveCSV_storeData();
+    DATA_SAVE_CSV_appendRow();
     cp5.getController(CSV_BTN_TAG).setLabel(CSV_BTN_TRUE + " (" + timerSaveCSV.getElapsed_ms() / 1000 + " sec)");
     println("cur saving time = " + timerSaveCSV.getElapsed_ms());
   } 
 }
 
-
+/////////////////////////////////////////////////////////////
+//  
+/////////////////////////////////////////////////////////////
 Table tableSaveCSV;
 String saveCSV_FileName = "";
 
 
-void saveCSV_open() {
+void DATA_SAVE_CSV_open() {
   //--------------------------------------
   //  Make tableSaveCSV header
   tableSaveCSV = new Table();
@@ -73,12 +75,13 @@ void saveCSV_open() {
 }
 
 
-void saveCSV_close() {
+void DATA_SAVE_CSV_close() {
+  saveTable(tableSaveCSV, saveCSV_FileName);
 }
 
 int save_data_count = 0;
 
-void saveCSV_storeData() {
+void DATA_SAVE_CSV_appendRow() {
   TableRow newRow = tableSaveCSV.addRow();
 
   newRow.setInt("id", tableSaveCSV.getRowCount() - 1);
@@ -100,6 +103,5 @@ void saveCSV_storeData() {
     }
   }
 
-  saveTable(tableSaveCSV, saveCSV_FileName);
   save_data_count++;  
 }
