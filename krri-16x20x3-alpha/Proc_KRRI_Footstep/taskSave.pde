@@ -1,5 +1,4 @@
 int SAVE_INTERVAL = 500;
-
 LapTimer timerSaveCSV;
 
 int BASE_0to1(int num) {
@@ -15,29 +14,12 @@ void update_Save() {
   if ( csv_btn_state == false) 
     return;
   
-  boolean cycle_granted = false;
-
   //  check if satisfies interval
-  {
-    long cur_tick = timerSaveCSV.getElapsedTick();
-
-    long interval_cycles = cur_tick / SAVE_INTERVAL;
-  
-    if (timerSaveCSV.getLastCycle() < interval_cycles) { // 180 : per 200ms
-      cycle_granted = true;
-      timerSaveCSV.updateLastCycle(interval_cycles);
-      println("cur grant = " + interval_cycles);
-    }
-  }
-  
-  //  store data to csv file
-  if(cycle_granted == true) {
+  if(true == timerSaveCSV.cycleTryCheckOut()) {
     saveCSV_storeData();
-    cp5.getController(CSV_BTN_TAG).setLabel(CSV_BTN_TRUE + " (" + timerSaveCSV.getElapsedTick() / 1000 + " sec)");
-
-    //println("tick(200ms) : " + cur_grant_tick + ", " + cur_tick);
+    cp5.getController(CSV_BTN_TAG).setLabel(CSV_BTN_TRUE + " (" + timerSaveCSV.getElapsed_ms() / 1000 + " sec)");
+    println("cur saving time = " + timerSaveCSV.getElapsed_ms());
   } 
-
 }
 
 
@@ -101,7 +83,7 @@ void saveCSV_storeData() {
 
   newRow.setInt("id", tableSaveCSV.getRowCount() - 1);
   newRow.setString("timestamp",    getCurTimeString());
-  newRow.setInt("runtime(ms)", (int)timerSaveCSV.getElapsedTick());
+  newRow.setInt("runtime(ms)", (int)timerSaveCSV.getElapsed_ms());
 
   String colName; 
   String strIndex;

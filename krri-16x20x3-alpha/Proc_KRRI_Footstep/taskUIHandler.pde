@@ -16,6 +16,17 @@ Textlabel    textTimer;
 PImage    bgi_logo_120ch; // Background image
 PImage    bgi_logo_mdex; // Background image
 
+
+//---------------------------------------------
+//  FUNCTION DEFINITION
+//---------------------------------------------
+void drawTextLog(String strText) {
+  fill(0, 0, 90); // black(0, 0, 0) . white(0, 0, 100), color (180~0, 100, 100)
+  textLog.render();
+  textLog.showString(strText);
+}
+
+
 void setup_UI() {
 
   bgi_logo_120ch = loadImage("./res/logo_Title.png");
@@ -33,21 +44,48 @@ void setup_cp5() {
   PFont font_small = createFont("arial",14);
   PFont font_mid   = createFont("arial",24);
   PFont font_large = createFont("arial",40);
-  //  align controls
+ 
+  color hsb_cyan = color(180, 50, 100);
+  color hsb_yellow = color(60, 100, 100);
+  color hsb_white = color(0, 0, 100);
+
+ //  align controls
   int pos_x = 120;
   int pos_y = 100;
 
   textTimer = new Textlabel(cp5,"--",100,100);
   textTimer.setPosition(pos_x, pos_y);
 
+
+  pos_x = window_size_x - 250;
+  pos_y = 60;
+  EditRect lineRect = new EditRect(pos_x, pos_y, 2, window_size_y - (pos_y + 10));
+  lineRect.render();
+
+
+  {
+    pos_x = window_size_x - 230;
+    pos_y = 120;
+
+    textLog = new EditRect(pos_x, pos_y, 220, 20);
+    textLog.setTextLeftMargin(3);
+    // textLog.showString("Open serial port please....");
+
+    String portInfo = "USB Port : ";
+    //  "Silicon Labs CP210x USB to UART Bridge"
+    for (int i = 0; i < Serial.list().length; i++) {
+      println(Serial.list()[i]);
+      portInfo += Serial.list()[i];
+      portInfo += ", ";
+    }
+    textLog.showString(portInfo);
+
+  }
+
+
   //----------------------------------------
   //  SERIAL PORT
   {
-    pos_x = window_size_x - 230;
-    pos_y = 80;
-
-    EditRect lineRect = new EditRect(pos_x-10, pos_y, 3, window_size_y - pos_y);
-    lineRect.render();
 
 
     pos_y = 150;
@@ -55,21 +93,23 @@ void setup_cp5() {
                       .setText("Serial Port :")
                       .setPosition(pos_x, pos_y)
                       .setColorValue(0xff555555)
-                      .setFont(createFont("Arial",14))
-                      //.setFont(font_small)
-                      ;
+                      .setFont(createFont("Arial",14));
     
     cp5.addTextfield(SerialNoteLabel)
-        .setPosition(pos_x + 90, pos_y)
-        .setSize(30,25)
+        .setPosition(pos_x + 80, pos_y)
+        .setSize(25,25)
         .setText(userPref.getValue(userPref.itemPort1))
         .setFont(createFont("Arial",12))
-        //.setFont(font)
-        .setFocus(true)
-        .setColor(color(0, 0, 100))
-        ;
+        .setColor(hsb_cyan);
 
-    cp5.addButton("OPEN SERIAL").setPosition(pos_x + 130, pos_y).setSize(55, 25).setLabel("Open").setFont(createFont("Arial",14));
+    cp5.addTextfield(".")
+        .setPosition(pos_x + 110, pos_y)
+        .setSize(25,25)
+        .setText(userPref.getValue(userPref.itemPort2))
+        .setFont(createFont("Arial",12))
+        .setColor(hsb_cyan);
+
+    cp5.addButton("OPEN SERIAL").setPosition(pos_x + 140, pos_y).setSize(55, 25).setLabel("Open").setFont(createFont("Arial",14));
 
   }
   
@@ -80,6 +120,7 @@ void setup_cp5() {
     pos_y = window_size_x - 350;
 
     int control_width = 0;
+
     
     control_width = 90;
     cp5.addTextlabel("tag_FILENAME")
@@ -89,24 +130,21 @@ void setup_cp5() {
                       .setFont(font_small)
                       ;
 
-    // pos_x += control_width + 25;
     pos_y += 30;
     control_width = 180;
     cp5.addTextfield("NAME")
-        .setPosition(pos_x, pos_y).setSize(control_width-50, 25)
+        .setPosition(pos_x + 10, pos_y).setSize(control_width, 25)
         .setText("John Doe")
         .setFont(font_small)
-        .setColor(color(0, 0, 100))
+        .setColor(hsb_cyan)
         ;
     
-    // pos_x += control_width - 35;
     pos_y += 50;
-    control_width = 70;
     cp5.addTextfield("MEMO")
-        .setPosition(pos_x, pos_y).setSize(control_width, 25)
+        .setPosition(pos_x + 10, pos_y).setSize(control_width, 25)
         .setText("MEMO")
         .setFont(font_small)
-        .setColor(color(0, 0, 100))
+        .setColor(hsb_cyan)
         ;
 
     control_width = 230;
@@ -157,7 +195,7 @@ void fileSelected(File selection) {
 
 
 void controlEvent(CallbackEvent event) {
-  String strBuf;
+  String strBuf, strBuf2;
   boolean result;
   int value_i;
   float value_f;
@@ -167,7 +205,8 @@ void controlEvent(CallbackEvent event) {
       case "/OPEN SERIAL":
         println("OPEN SERIAL");
         strBuf = cp5.get(Textfield.class, SerialNoteLabel).getText();
-        println("Button open Pressed : " + strBuf);
+        strBuf2= cp5.get(Textfield.class, ".").getText();
+        println("Button open Pressed : " + strBuf + ", " + strBuf2);
         
         //  1st Serial Port
         {
@@ -178,8 +217,8 @@ void controlEvent(CallbackEvent event) {
 
         //  2nd Serial Port
         {
-          String com2Names = String.format("COM%s", userPref.getValue(userPref.itemPort2));
-          // String com2Names = String.format("COM%s", "33");
+          // String com2Names = String.format("COM%s", userPref.getValue(userPref.itemPort2));
+          String com2Names = String.format("COM%s", strBuf2);
           println("Port2 Name : " + com2Names);
           openSerialPort2(com2Names);
         }
@@ -187,6 +226,7 @@ void controlEvent(CallbackEvent event) {
         //  save preference
         {
           userPref.setValue(userPref.itemPort1, strBuf);
+          userPref.setValue(userPref.itemPort2, strBuf2);
           userPref.saveTable_CSV();
           
           cp5.get(Textfield.class, SerialNoteLabel).setLock(true);
@@ -201,25 +241,24 @@ void controlEvent(CallbackEvent event) {
           strBuffer = "Can't save. Please open serial port";
 
           drawTextLog(strBuffer);
-          println(strBuffer);
-          
+          println(strBuffer);          
           break;
         }
 
         //  toggle button state and text
-        if(false == csv_btn_state) {
-          //  SAVE ON
+        if(false == csv_btn_state) {   //  SAVE STARTS
           csv_btn_state = true;
           event.getController().setLabel(CSV_BTN_TRUE);
-          saveCSV_open();
-          
+
+          saveCSV_open();          
           timerSaveCSV.reset();
+          timerSaveCSV.cycleStart(SAVE_INTERVAL);
         }
-        else {
-          //  SAVE OFF
+        else {    //  SAVE ENDS
           csv_btn_state = false;
           event.getController().setLabel(CSV_BTN_FALSE);
-          
+
+          saveCSV_close();
         }
         break;
 

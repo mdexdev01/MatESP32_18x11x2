@@ -45,7 +45,6 @@ Serial myPort2;
 boolean isPortOpened = false;
 boolean isPortOpened2 = false;
 
-
 //==========================================================
 //  FOR DEBUG and LOG
 // int window_size_x = 1920;
@@ -61,16 +60,8 @@ int dashboard_y = window_size_y - 120;
 String    strBuffer;
 EditRect  textLog;
 
-boolean isDebug = false;
-
-
 //==========================================================
 //  UTILITY FUNCTIONS
-void drawTextLog(String strText) {
-  fill(0, 0, 90); // black(0, 0, 0) . white(0, 0, 100), color (180~0, 100, 100)
-  textLog.render();
-  textLog.showString(strText);
-}
 
 
 void setup() {
@@ -88,10 +79,6 @@ void setup() {
   background(0, 0, 85); // (220, 80, 15) : dark blue, (0, 0, 100) : white
   //background(220, 80, 15);// : dark blue, (0, 0, 100) : white
 
-  textLog = new EditRect(1, 40, 250, 20);
-  textLog.setTextLeftMargin(3);
-  textLog.showString("Open serial port please....");
-
 
   setup_Pref();
 
@@ -107,7 +94,6 @@ void setup() {
   //  THREAD - UART
   thread("readData_Grib_A");
   thread("readData_Grib_C");
-
 
   //========================================
   {
@@ -130,7 +116,6 @@ void setup() {
 int sensor_frame_count = 0;
 
 void draw() {
-
   if(flag_read == true) {
     sensor_frame_count++;
 
@@ -145,7 +130,6 @@ void draw() {
 
 
 //  Serial example
-//    ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
 void openSerialPort(String portName) {
   PORT_NAME = portName;
 
@@ -159,7 +143,6 @@ void openSerialPort(String portName) {
 }
 
 //  Serial example
-//    ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
 void openSerialPort2(String portName) {
   try {
     myPort2 = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
@@ -234,6 +217,7 @@ boolean readData_Grib_A() {
     }
 
 
+    //  ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
     int read_len = myPort.readBytesUntil(0xFE, PacketRawData); // read 1 whole buffer.
 
     boolean good_packet = false;

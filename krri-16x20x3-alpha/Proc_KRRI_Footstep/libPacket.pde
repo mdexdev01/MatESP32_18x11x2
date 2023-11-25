@@ -1,3 +1,5 @@
+//------------------------------------------------
+//  Packet protocol
 int PACKET_HEADER_LEN    = 8;
 int PACKET_TAIL_LEN      = 2;
 
@@ -8,13 +10,15 @@ static final int VALID_VAL_MAX = (0xEF);
 int PACKET_LEN_TYPE0    = 0;
 int SINGLE_DATA_LEN     = 1; // 1: byte, 2: short, 4: int
 
-
+//------------------------------------------------
+//  Packet buffer for receiving
 byte[] PacketRawData;
 byte[] PacketRawData2;
 byte[] PacketData;
 byte[] PacketData2;
 
 
+//------------------------------------------------
 //  Configuration
 void configPacket(int num_col, int num_row) {
   int num_cells = num_row * num_col;

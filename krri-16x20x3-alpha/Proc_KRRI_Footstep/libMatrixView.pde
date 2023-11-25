@@ -243,10 +243,6 @@ class libMatrixView {
 
     for ( i = 0 ; i < numOfCells ; i++ ) {
       strMsg = String.format("%d", cellsValue[i]);
-      // println(i + ")" + strMsg);
-      // cellsRect[i].render();  
-      // cellsRect[i].showString(strMsg);
-         
 
       //  HSB : https://codepen.io/HunorMarton/details/eWvewo
       if(cellsValue[i] == 0) {
@@ -291,22 +287,11 @@ class libMatrixView {
     calcCOM_Rate();
 
     // //  calc coordinates of COM
-    // COM_Coord.x = matrixOutline.getCenterX() + COM_Rate.x * matrixOutline.getWidth() / 2;
-    // COM_Coord.y = matrixOutline.getCenterY() + COM_Rate.y * matrixOutline.getHeight() / 2;
+    COM_Coord.x = matrixOutline.getCenterX() + COM_Rate.x * matrixOutline.getWidth() / 2;
+    COM_Coord.y = matrixOutline.getCenterY() + COM_Rate.y * matrixOutline.getHeight() / 2;
     //println("vx=" + COM_Coord.x + ", vy=" + COM_Coord.y);
   }
 
-  void anylizeCellValues(int [] cell_values) {
-    dumpPacket(cell_values);
-
-    //  calc COM. COM : Center of Mass
-    calcCOM_Rate();
-
-    // //  calc coordinates of COM
-    // COM_Coord.x = matrixOutline.getCenterX() + COM_Rate.x * matrixOutline.getWidth() / 2;
-    // COM_Coord.y = matrixOutline.getCenterY() + COM_Rate.y * matrixOutline.getHeight() / 2;
-    //println("vx=" + COM_Coord.x + ", vy=" + COM_Coord.y);
-  }
 
   void dumpPacket(int [] packet_data) {
     for(int i = 0 ; i < numOfCells ; i++) {

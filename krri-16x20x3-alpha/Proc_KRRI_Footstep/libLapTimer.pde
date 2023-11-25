@@ -1,18 +1,23 @@
+/**
+* @class    LapTimer
+* @brief    millisecond or interval timer
+* @details  get the updated millisecond elapsed time. 
+            And also provides the cycles. (simple get/set function)
+*/
 class LapTimer {
     ControlTimer timerMine;
-    long        tickOrigin;
-    long        lastCycle = 0;
-    String      nickName;
+
+    long        timeOrigin_ms = 0;
+    String      nickName = "";
 
     LapTimer(String nick) {
         timerMine = new ControlTimer();
         timerMine.setSpeedOfTime(1); // 1 : 1ms
-        tickOrigin = timerMine.time(); //<>//
-        lastCycle = 0;
+        timeOrigin_ms = timerMine.time(); //<>//
         
         nickName = nick;
 
-        println("timer starts... " + nickName);
+        println("timer starts... [" + nickName + "]");
    };
 
     String getNick() {
@@ -20,20 +25,44 @@ class LapTimer {
     }
 
     void reset() {
-        tickOrigin = timerMine.time(); //<>//
-        lastCycle = 0;
+        timeOrigin_ms = timerMine.time(); //<>//
     }
 
-    long getElapsedTick() {
-        return (timerMine.time() - tickOrigin); //<>//
+    long getElapsed_ms() {
+        return (timerMine.time() - timeOrigin_ms); //<>//
     }
 
-    void updateLastCycle(long last_cycle) {
-        lastCycle = last_cycle;
+    //-----------------------------------------------------
+    // FUNCTIONS FOR CYCLE
+    //-----------------------------------------------------
+    long  cycleCheckedOutLast = 0;
+    long cycleInterval_ms = 1000; // 1000 : 1 second
+    long cycleTimerOrigin = 0;
+
+    void cycleStart(long interval_ms) {
+        cycleInterval_ms = interval_ms;
+        cycleCheckedOutLast = 0;
+        cycleTimerOrigin = timerMine.time(); //<>//
     }
 
-    long getLastCycle() {
-        return lastCycle;
+    /**
+     *  @brief  Caution: It cannot check the multiple interval. 
+     *          it only check if the time past over the single interval. 
+     */
+    boolean cycleTryCheckOut() {
+        long elapsed_ms = getElapsed_ms();
+        long cycle_from_start = elapsed_ms / cycleInterval_ms;
+
+        if(cycleCheckedOutLast < cycle_from_start) {
+            cycleCheckedOutLast = cycle_from_start;
+            return true;
+        }
+        else 
+            return false;
+    }
+
+    long getLastCycle2() {
+        return cycleCheckedOutLast;
     }
 
 };
