@@ -10,6 +10,12 @@
 #include "lib_rle_util.h"
 // #include "lib_rle.h"
 
+#define BOARD_ID_TOP 0
+#define BOARD_ID_BOTTOM 1
+#define BOARD_ID_C 2
+
+#define BOARD_ID BOARD_ID_TOP  // TOP(UART MASTER) : 0, BOTTOM(UART SLAVE) : 1
+
 //---------------------------------------------
 //  Serial config
 #define SERIAL_SIZE_TX 512   // used in Serial.setRxBufferSize()
@@ -57,12 +63,6 @@ byte packetBufDec[PACKET_LEN];  // for test enc/dec
 byte packetBufSlave[PACKET_LEN * 5];  // * 5 for overflow
 int deliver_count_slave = 0;
 
-#define BOARD_ID_TOP 0
-#define BOARD_ID_BOTTOM 1
-#define BOARD_ID_C 2
-
-#define BOARD_ID BOARD_ID_C  // TOP(UART MASTER) : 0, BOTTOM(UART SLAVE) : 1
-
 //---------------------------------------------
 //  Function Declarations
 //---------------------------------------------
@@ -97,60 +97,74 @@ byte trimVal8(byte raw_value) {
     return value;
 }
 
-void buildPacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
+int buildPacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int num_row, int num_col) {
     packet_buffer[0] = HEADER_SYNC;       // 0xFF
     packet_buffer[1] = HEADER_SYNC;       // 0xFF
     packet_buffer[2] = 0x00;              // Major Ver
     packet_buffer[3] = 0x00;              // Minor Ver
-    packet_buffer[4] = (width * height);  // Packet body Len, width, height,
+    packet_buffer[4] = num_row;  // Packet body Len, width, height,
     packet_buffer[5] = BOARD_ID;          // Board ID
     packet_buffer[6] = 0x00;              // Reserved 0
     packet_buffer[7] = 0x00;              // Reserved 1
 
     int pa_index = HEADER_LEN;
 
-    for (int w = 0; w < width; w++) {
-        for (int h = 0; h < height; h++) {
+    for (int w = 0; w < num_row; w++) {
+        for (int h = 0; h < num_col; h++) {
             packet_buffer[pa_index++] = trimVal8(adc_mat_buf[w][h]);
         }
     }
 
     packet_buffer[pa_index++] = 0x00;       //  Reserved 2
     packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+
+    return pa_index;
 }
 
-void buildPacket_Test(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
+//  KRRI : 철도연
+int buildParcel_KRRI(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int num_row, int num_col) {
+    int col_start = 4;
+    int col_end = 15;
+    int col_len = col_end - col_start + 1;
+
     packet_buffer[0] = HEADER_SYNC;       // 0xFF
     packet_buffer[1] = HEADER_SYNC;       // 0xFF
-    packet_buffer[2] = 0x00;              // Major Ver
+    packet_buffer[2] = 0x01;              // Major Ver
     packet_buffer[3] = 0x00;              // Minor Ver
-    packet_buffer[4] = (width * height);  // Packet body Len, width, height,
+    packet_buffer[4] = num_row;  // Packet body Len, width, height,
     packet_buffer[5] = BOARD_ID;          // Board ID
-    packet_buffer[6] = 0x00;              // Reserved 0
-    packet_buffer[7] = 0x00;              // Reserved 1
+    packet_buffer[6] = col_len;              // Reserved 0, start column // FC : 252, cause fedcb 54321
+    packet_buffer[7] = 0;              // Reserved 1, end  column // FB : 251, cause fedcb 54321
 
     int pa_index = HEADER_LEN;
 
-    for (int w = 0; w < width; w++) {
-        for (int h = 0; h < height; h++) {
-            packet_buffer[pa_index++] = trimVal8(w * height + h);
+    for (int w = 0; w < num_row; w++) {
+        for (int h = col_start; h < num_col; h++) {
+            packet_buffer[pa_index++] = trimVal8(adc_mat_buf[w][h]);
+            // packet_buffer[pa_index++] = h + w;
         }
     }
 
-    packet_buffer[pa_index++] = 0x00;       //  Reserved 2
+    packet_buffer[pa_index++] = col_len;     // Reserved 2
     packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+
+    return pa_index;
 }
+
 
 void tempDelay(int time_len_ms) {
     delay(time_len_ms);
 }
 
 void sendPacket(byte *packet_buffer, int packet_len) {
+  if(true) {
     //  send data to the PC
     Serial.write(packet_buffer, packet_len);
-
+  }
+  else {
     //  log all data.
-    // printPacket(packet_buffer, packet_len);
+    printPacket(packet_buffer, packet_len);
+  }
 }
 
 int deliverSlaveUart() {

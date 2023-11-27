@@ -185,6 +185,8 @@ String CSV_BTN_TRUE   = "STOP";
 ///////////////////////////////////////////////////////////////////////////
 //    EVENT HANDLER
 ///////////////////////////////////////////////////////////////////////////
+
+// combo function : selectInput("Select a file to process:", "fileSelected");
 void fileSelected(File selection) {
   if (selection == null) {
     println("Window was closed or the user hit cancel.");
@@ -241,10 +243,11 @@ void controlEvent(CallbackEvent event) {
           strBuffer = "Can't save. Please open serial port";
 
           drawTextLog(strBuffer);
-          println(strBuffer);          
+          println(strBuffer);
           break;
         }
 
+        //--------------------------------------------
         //  toggle button state and text
         if(false == csv_btn_state) {   //  SAVE STARTS
           csv_btn_state = true;
@@ -269,7 +272,6 @@ void controlEvent(CallbackEvent event) {
         String temp_str = strPathShot + "/" + text_field + "/" + getCurTimeString() + "_" + strFileInfo + ".png";
         println(temp_str);
         saveFrame(temp_str);
-
         break;
     }
     println("ui handler ended...");

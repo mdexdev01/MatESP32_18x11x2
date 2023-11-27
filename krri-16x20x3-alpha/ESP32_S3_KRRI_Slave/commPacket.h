@@ -66,6 +66,15 @@ byte trimVal8(byte raw_value) {
     return value;
 }
 
+void sendPacket(byte *packet_buffer, int packet_len) {
+    //  send data to the PC
+    Serial1.write(packet_buffer, packet_len);
+
+    //  log all data.
+    // printPacket(packet_buffer, packet_len);
+}
+
+
 void buildPacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) {
     packet_buffer[0] = HEADER_SYNC;       // 0xFF
     packet_buffer[1] = HEADER_SYNC;       // 0xFF
@@ -157,3 +166,35 @@ void buildParcel(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT]
     packet_buffer[pa_index++] = height;     //  Reserved 2
     packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
 }
+
+
+//  KRRI : 철도연
+int buildParcel_KRRI(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int num_row, int num_col) {
+    int col_start = 4;
+    int col_end = 15;
+    int col_len = col_end - col_start + 1;
+
+    packet_buffer[0] = HEADER_SYNC;       // 0xFF
+    packet_buffer[1] = HEADER_SYNC;       // 0xFF
+    packet_buffer[2] = 0x01;              // Major Ver
+    packet_buffer[3] = 0x00;              // Minor Ver
+    packet_buffer[4] = num_row;  // Packet body Len, width, height,
+    packet_buffer[5] = BOARD_ID;          // Board ID
+    packet_buffer[6] = col_len;              // Reserved 0, start column // FC : 252, cause fedcb 54321
+    packet_buffer[7] = 0;              // Reserved 1, end  column // FB : 251, cause fedcb 54321
+
+    int pa_index = HEADER_LEN;
+
+    for (int w = 0; w < num_row; w++) {
+        for (int h = col_start; h < num_col; h++) {
+            packet_buffer[pa_index++] = trimVal8(adc_mat_buf[w][h]);
+            // packet_buffer[pa_index++] = h + w;
+        }
+    }
+
+    packet_buffer[pa_index++] = col_len;     // Reserved 2
+    packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+
+    return pa_index;
+}
+

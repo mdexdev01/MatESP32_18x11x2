@@ -79,6 +79,7 @@ void loop() {
 void pumpSerial(void *pParam) {
     boolean core1_done = *((boolean *)(pParam));
 
+    int packet_len = 0;
     while (true) {
         if (adc_scan_done == false) {
             // Serial.printf("[time0:%08d] delay (%d) %d \n", millis(), adc_scan_done, getElapsed_TS0()); // prints time since program started
@@ -90,13 +91,17 @@ void pumpSerial(void *pParam) {
         startTS0();
 
         //  SEND PACKET
-        // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
-        int data_width = PARCEL_MUX_LEN;
-        int data_height = NUM_MUX_OUT;    // 16
-        buildParcel(packetBuf, adc_value, data_width, data_height, 0, data_width);
-        sendSerial(packetBuf, PACKET_LEN);
-        delay(5);
+        int data_row = MUX_LIST_LEN;
+        int data_col = NUM_MUX_OUT;    // 16
 
+        // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
+        // buildParcel(packetBuf, adc_value, data_row, data_col, 0, data_row);
+        // sendSerial(packetBuf, PACKET_LEN);
+
+        packet_len = buildParcel_KRRI(packetBuf, adc_value, data_row, data_col);
+        sendPacket(packetBuf, packet_len);
+
+        delay(5);
         //  send divided packet (parcel)
 /*        
         int data_width = PARCEL_MUX_LEN;

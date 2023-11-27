@@ -121,6 +121,7 @@ int deliver_count_main = 0;
 
 void pumpSerial(void *pParam) {
     Serial.printf("PUMP- ENTER\n");
+    int packet_len = 0;
     while (true) {
         if (adc_scan_done == false) {
             delay(1);
@@ -136,8 +137,9 @@ void pumpSerial(void *pParam) {
         }
 
         //  SENSOR DATA - MAIN
-        buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
-        sendPacket(packetBuf, PACKET_LEN);
+        // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
+        packet_len = buildParcel_KRRI(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
+        sendPacket(packetBuf, packet_len);
 
         // sendBLEGrib(packetBuf, PACKET_LEN);
 
@@ -288,7 +290,11 @@ void printPacket(byte *packet_buffer, int packet_len) {
     offset = HEADER_LEN;
     
     int num_mux = packet_buffer[IDX_BODY_LEN];
-    int body_len = num_mux * NUM_MUX_OUT;
+
+    int row_len = packet_buffer[4];
+    int col_len = packet_buffer[6];
+    int body_len = row_len * col_len;
+
     Serial.printf(" adc data length : %d \n", body_len);
 /*
     if ((MUX_LIST_LEN * NUM_MUX_OUT) == body_len) {
