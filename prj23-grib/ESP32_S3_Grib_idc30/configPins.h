@@ -27,6 +27,7 @@ int enList[MUX_LIST_LEN] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 //  HW Pin # - En of all mux
 const int NUM_OF_MUX = 22;
 int pinMuxEn[NUM_OF_MUX] = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 12, 21, 13}; // En0=41, En1=7, ... En21=13
+// int pinMuxEn[NUM_OF_MUX] = {39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 12, 21, 13, 41, 7, 40, 15}; // Last 4 pins of 22 pin test to the Processing app with only 18 pins
 
 //  Num of Mux output
 #define NUM_MUX_OUT     16
@@ -205,6 +206,8 @@ void read_16ch_in_mux_fast(int * buf_16) {
 void selectMux(int mux_id) {
 
   for(int i = 0 ; i < NUM_OF_MUX ; i++) {
+    if(i == mux_id)
+      continue;
     digitalWrite(pinMuxEn[getEnPinById(i)], 1);
   }
   digitalWrite(pinMuxEn[getEnPinById(mux_id)], 0);
