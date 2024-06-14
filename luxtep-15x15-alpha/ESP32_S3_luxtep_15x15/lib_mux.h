@@ -25,10 +25,11 @@
 // int pinMuxEn[NUM_OF_MUX] = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 12, 21, 13}; // En0=41, En1=7, ... En21=13
 // int pinMuxEn[NUM_OF_MUX] = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, xx, 21, 13}; // En0=41, En1=7, ... En21=13
 //                            {0,  1,  2,  3,  4,  5,  6, 7,  8, 9, 10, 11, 12,13,14, 15, 16, 17, 18, 19, 20, 21};
+// int pinMuxEn[NUM_OF_MUX]    = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 21}; // En0=41, En1=7, ... En21=13
 //  ==> 19th error. 19th Pin : 12 ==> QUESTION !!!!!!!!!!
 
-const int NUM_OF_MUX = 20;
-int pinMuxEn[NUM_OF_MUX]    = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 21}; // En0=41, En1=7, ... En21=13
+const int NUM_OF_MUX = 15;
+int pinMuxEn[NUM_OF_MUX]    = { 41, 7, 40, 15, 39, 16, 38, 17, 37, 18, 36, 8, 35, 19, 20}; // Luxtep 15x15
 
 
 #define MUX_LIST_LEN  NUM_OF_MUX
@@ -44,7 +45,8 @@ int adc_value[NUM_OF_MUX][NUM_MUX_OUT];
 
 //  HW Pin # = Signal 0~3 of all mux
 const int NUM_MUX_SIG = 4;
-int pinMuxSig[NUM_MUX_SIG] = {2, 5, 42, 6};
+// int pinMuxSig[NUM_MUX_SIG] = {2, 5, 42, 6};
+int pinMuxSig[NUM_MUX_SIG] = {2, 5, 42, 6}; // Luxtep 15x15
 int S0, S1, S2, S3;
 
 //  HW Pin # - Wakeup, ADC
