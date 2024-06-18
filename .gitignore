@@ -11,16 +11,16 @@ prj23-grib-ble/Proc_GribYoga/CSV_Data/
 prj23-grib-wifi/Proc_GribYoga/CSV_Data/
 krri-16x20x3-alpha/Proc_KRRI_Footstep/CSV_Data/
 krri-16x20x2-alpha/Proc_KRRI_Footstep/CSV_Data/
-prj24-ezgeo/Proc_Ezgeo_18x5/CSV_Data/
+prj24-ezgeo/Proc_Ezgeo_18x5/Save_CSV/
 
 prj23-grib/Proc_GribYoga/ScreenShot/
 prj23-grib-ble/Proc_GribYoga/ScreenShot/
 prj23-grib-wifi/Proc_GribYoga/ScreenShot/
 krri-16x20x3-alpha/Proc_KRRI_Footstep/ScreenShot/
 krri-16x20x2-alpha/Proc_KRRI_Footstep/ScreenShot/
-prj24-ezgeo/Proc_Ezgeo_18x5/ScreenShot/
+prj24-ezgeo/Proc_Ezgeo_18x5/Save_ScreenShot/
 
-Luxtep-17x28-a\Proc_matrix_17x28\
+Luxtep-17x28-a/Proc_matrix_17x28/
 
 # file extentions
 *.o 
