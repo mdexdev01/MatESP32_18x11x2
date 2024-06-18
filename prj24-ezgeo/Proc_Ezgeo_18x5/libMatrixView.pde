@@ -1,3 +1,26 @@
+//==========================================================
+//  COLORMAP RANGE
+int max_cell_val = 200;
+int colorMap(int cell_value) {
+  /*
+   cell range : about 0~240. usually 0~150
+   
+   hue range : use only 180~0
+   color table of HUE, SAT, BRI : https://codepen.io/HunorMarton/details/eWvewo
+   
+   map function : https://processing.org/reference/map_.html
+   map(current value, source min, source max, target min, target max)
+   */
+
+  float hue_val = map(cell_value, 0, 140, 180, 0); // if value is over 140, then it's ceiled by 140. if 141 or 150 or 240, then it's ceiled to 140.
+  int hue = (int)hue_val;
+
+  if (max_cell_val < cell_value)
+    hue = 0;
+
+  return hue;
+}
+
 //////////////////////////////////////////////////////////////////////
 //  CLASS  libMatrixView
 //////////////////////////////////////////////////////////////////////
@@ -292,6 +315,12 @@ class libMatrixView {
   void dumpPacket(int [] packet_data) {
     for(int i = 0 ; i < numOfCells ; i++) {
       cellsValue[i] = packet_data[i];
+    }
+  }
+
+  void fillPacketBytes(byte [] origin_data, int offset) {
+    for(int i = 0 ; i < numOfCells ; i++) {
+      cellsValue[i] = byteToInt(origin_data[offset + i]);
     }
   }
 

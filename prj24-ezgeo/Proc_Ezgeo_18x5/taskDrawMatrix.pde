@@ -1,12 +1,12 @@
 //==========================================================
 //  CONFIG DATA VIEW
 String csvPath_CellPos_A = "./res/winnieconnie.csv";
-String csvPath_CellPos_B = "./res/CellPos_Block_B.csv";
-String csvPath_CellPos_C = "./res/CellPos_Block_C.csv";
+// String csvPath_CellPos_B = "./res/CellPos_Block_B.csv";
+// String csvPath_CellPos_C = "./res/CellPos_Block_C.csv";
 
 libMatrixView  matView_A;
-libMatrixView  matView_B;
-libMatrixView  matView_C;
+// libMatrixView  matView_B;
+// libMatrixView  matView_C;
 
 
 boolean create_MatrixView() {
@@ -32,21 +32,25 @@ boolean create_MatrixView() {
   return true;
 }
 
+void fill_MatrixView(){
 
-boolean update_EditView() {
+}
+
+
+boolean calculate_MatrixView() {
   matView_A.anylizeCurData();
   
-  matView_A.drawColorCells();
-
-  // matView_A.drawCOMGauge();
-
   //-----------------------------------------------
   //  step 3. draw the x and y gauge of "center of mass"
-  PVector   vectorCOM_A = matView_A.getVectorCOM();
-
-  //strBuffer = String.format("Center Of Mass (X, Y) = LEFT (%2.3f, %2.3f), Right (%2.3f, %2.3f)"
-  //                      , vectorCOM_A.x, vectorCOM_A.y, vectorCOM_B.x, vectorCOM_B.y);
-  //drawTextLog(strBuffer);
+  // PVector   vectorCOM_A = matView_A.getVectorCOM();
+  //drawTextLog(String.format("Center Of Mass (X, Y) = LEFT (%2.3f, %2.3f), Right (%2.3f, %2.3f)"
+  //                      , vectorCOM_A.x, vectorCOM_A.y, vectorCOM_B.x, vectorCOM_B.y));
   
   return true;
+}
+
+void draw_MatrixView() {
+  matView_A.drawColorCells();
+
+  matView_A.drawCOMGauge();
 }

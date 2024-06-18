@@ -152,6 +152,9 @@ void read_16ch_in_mux(int* buf_16) {
 void read_8ch_in_mux(int* buf_16) {
     for (int i = 0; i < NUM_MUX_OUT ; i++) {
         buf_16[i] = read_1ch_in_mux(i);
+
+        if(buf_16[i] <5)
+          buf_16[i] = 0;
     }
 }
 

@@ -2,8 +2,8 @@ ControlP5 cp5; // https://sojamo.de/libraries/controlP5/
 
 //---------------------------------------------
 //  UI coordinate
-String strPathCSV = "CSV_Data/";
-String strPathShot = "ScreenShot/";
+String strPathCSV = "Save_CSV/";
+String strPathShot = "Save_ScreenShot/";
 
 String strFooterCSV = ".csv";
 String strFooterShot = ".png";
@@ -24,6 +24,8 @@ void drawTextLog(String strText) {
   fill(0, 0, 90); // black(0, 0, 0) . white(0, 0, 100), color (180~0, 100, 100)
   textLog.render();
   textLog.showString(strText);
+
+  println(strText);
 }
 
 
@@ -235,10 +237,7 @@ void controlEvent(CallbackEvent event) {
 
       case "/CSV_START_STOP":
         if(false == isPortOpened) {
-          strBuffer = "Can't save. Please open serial port";
-
-          drawTextLog(strBuffer);
-          println(strBuffer);
+          drawTextLog("Can't save. Please open serial port");
           break;
         }
 
@@ -248,7 +247,7 @@ void controlEvent(CallbackEvent event) {
           csv_btn_state = true;
           event.getController().setLabel(CSV_BTN_TRUE);
 
-          DATA_SAVE_CSV_open();          
+          MATRIX_SAVE_CSV_open(matView_A);          
           timerSaveCSV.reset();
           timerSaveCSV.cycleStart(SAVE_INTERVAL_MS);
         }
@@ -256,7 +255,7 @@ void controlEvent(CallbackEvent event) {
           csv_btn_state = false;
           event.getController().setLabel(CSV_BTN_FALSE);
 
-          DATA_SAVE_CSV_close();
+          MATRIX_SAVE_CSV_close();
         }
         break;
 
