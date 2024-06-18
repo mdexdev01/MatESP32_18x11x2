@@ -90,9 +90,7 @@ int parseData_BottomLeftStart(byte[] read_data, int board_index) {
 
       int xy_pos = matView_A.numOfCol * row + x;
 
-      // if(board_index == 0) {
-        matView_A.cellsValue[xy_pos] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
-      // }
+      matView_A.cellsValue[xy_pos] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
 
     }
   }

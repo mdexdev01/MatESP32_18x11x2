@@ -9,6 +9,8 @@
   1. 프로토콜 변경 통보 : 18 MUX ==> 20 MUX, 테일에 0XFE 두개가 아닌, 1개.
   2. libPacket 함수들을 libMatrixView 클래스에 fillData함수로 편입.
   3. matView_A를 레퍼런스로 참조.
+  4. SerialPort 객체화
+  5. 무게 중심
  */
 
 import processing.serial.*;
@@ -85,7 +87,7 @@ void setup() {
 
   setup_Pref();
 
-  if(false == setup_MatrixView()) {
+  if(false == create_MatrixView()) {
     textLog.showString("[ERROR] Position CSV file error....");
   }
   delay(100);

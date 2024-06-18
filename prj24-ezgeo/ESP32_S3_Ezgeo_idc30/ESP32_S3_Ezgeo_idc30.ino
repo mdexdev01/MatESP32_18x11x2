@@ -13,13 +13,6 @@
   < Reference >
   MultiTask : https://blog.naver.com/PostView.naver?blogId=crucian2k3&logNo=222069416341&parentCategoryNo=&categoryNo=58&viewDate=&isShowPopularPosts=true&from=search
 
-    < Grib BLE Gateway connection >
-    UART : 115,200bps
-    Linux 로그인 ID는  grib, PW는 grib12!@ 입니다.
-    로그인 후 shell이 나오면 다음과 같이 명령을 치면 gateway로그를 확인할 수 있습니다.
-    journalctl -f -u grib-ble-sensor-gateway.service
-
-
   < TODO >
   1. 점퍼 번호가 2씩 밀린다. 즉 HW 0번을 묶으면 SW에서는 2번 먹스로 읽힌다. 종성이가 2개를 앞에서부터 자른것 같다.
 
@@ -93,6 +86,7 @@ void adcScanMainPage() {
         changeMux(mux_id);
         // read_16ch_in_mux_fast(adc_value[mux_id]);  //  adc_value : 2d array
         read_8ch_in_mux(adc_value[mux_id]);  //  adc_value : 2d array
+        reorder_bug_patch(adc_value[mux_id]);  //  adc_value : 2d array
     }
 
     adc_scan_done = true;
@@ -102,23 +96,23 @@ void adcScanMainPage() {
 int deliver_count_main = 0;
 
 void pumpSerial(void *pParam) {
-    Serial.printf("PUMP- ENTER\n");
-    while (true) {
-        if (adc_scan_done == false) {
-            delay(1);
-            continue;
-        }
+  Serial.printf("PUMP- ENTER\n");
+  while (true) {
+      if (adc_scan_done == false) {
+          delay(1);
+          continue;
+      }
 
-        //  SENSOR DATA - MAIN
-        buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
+      //  SENSOR DATA - MAIN
+      buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
 
-        sendPacket(packetBuf, PACKET_LEN);
+      sendPacket(packetBuf, PACKET_LEN);
 
-        adc_scan_done = false;
-        // tempDelay(1000);
+      adc_scan_done = false;
+      // tempDelay(1000);
 
-        deliver_count_main++;
-    }  // while
+      deliver_count_main++;
+  }  // while
 }
 
 void sendPacket(byte *packet_buffer, int packet_len) {

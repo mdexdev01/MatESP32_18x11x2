@@ -1,8 +1,10 @@
 /*
   <Arduino Config>
-  BOARD : "ESP32-S3 DEVKITC-1" (NOT 1.1) OR "ADAFRUIT QT py esp32-C3"
-  DESC : SRAM 512K, ROM 384K, FLASH 16M, PSRAM 8M
+  BOARD : "ESP32-S3 DEVKITC-1 N8R2" (NOT 1.1) OR "ADAFRUIT QT py esp32-C3"
+  DESC : SRAM 512K, ROM 384K, FLASH 8M, PSRAM 2M
   CONFIG : Flash QIO 80MHz, OPI PSRAM, Partition Minimal SPIFFS, others : apply default setting
+
+  Pinmap for EZGEO : https://app.box.com/integrations/googledss/openGoogleEditor?fileId=1057800223831&trackingId=3&csrfToken=fec3c9e31a4e5bc1e73cc6f018a5d619fe6284085bd9bccd471d5a7ccdbf5a74#slide=id.g2e5f6fedfce_0_71
 
   SEE 74HC595 later - https://docs.arduino.cc/tutorials/communication/guide-to-shift-out
 */
@@ -27,7 +29,12 @@ int enList[MUX_LIST_LEN] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 // #define MUX_LIST_LEN 11
 // int enList[MUX_LIST_LEN] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};  // ==> Simply En Jumper number list. From left to Right.
 
-//  HW Pin # - En of all mux
+
+////////  HW Pin # - En of all mux
+/*  IDK 답변
+  1. GPIO33, 34, 35, 36, 37는 PSRAM 8MB형에서 사용 불가 합니다.  R2(2MB)혹은 PSRAM없는 형으로 사용하셔야 합니다.
+  2. GPIO26은 PSRAM이 있으면 모두 사용 불가 합니다.
+*/
 // const int NUM_OF_MUX = 22;
 // int pinMuxEn[NUM_OF_MUX] = {41, 7, 40, 15, 39, 16, 38, 8, 37, 3, 36, 46, 35, 9, 0, 10, 45, 11, 47, 12, 21, 13}; // En0=41, En1=7, ... En21=13
 
@@ -213,6 +220,19 @@ void read_16ch_in_mux_fast(int* buf_16) {
     digitalWrite(S3, 1);  //  ch 13 : 1011
     buf_16[13] = analogRead(pinADC);
 }
+
+void reorder_bug_patch(int* buf_16) {
+  int values[NUM_USED_OUT];
+
+  for (int i = 0; i < NUM_USED_OUT; i++) {
+      values[i] = buf_16[i];
+  }
+
+  for (int i = 0; i < NUM_USED_OUT; i++) {
+      buf_16[i] = values[5-i-1];
+  }
+}
+
 
 //-----------------------------------------------------
 //    SELECT MUX

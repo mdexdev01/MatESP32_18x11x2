@@ -9,7 +9,7 @@ libMatrixView  matView_B;
 libMatrixView  matView_C;
 
 
-boolean setup_MatrixView() {
+boolean create_MatrixView() {
   //  load csv file - rect cell position. <left, top, width, height> of 31 rect
   
   //---------------------------------

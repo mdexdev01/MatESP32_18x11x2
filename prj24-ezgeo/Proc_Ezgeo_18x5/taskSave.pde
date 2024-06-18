@@ -6,7 +6,7 @@ int BASE_0to1(int num) {
 }
 
 void setup_Save() {
-  timerSaveCSV = new LapTimer("csv timer");
+  timerSaveCSV = new LapTimer("save csv timer");
 }
 
 
