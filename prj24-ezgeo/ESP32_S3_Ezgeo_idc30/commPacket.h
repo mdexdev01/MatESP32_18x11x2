@@ -91,7 +91,7 @@ void buildPacket(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT]
     packet_buffer[0] = HEADER_SYNC;       // 0xFF
     packet_buffer[1] = HEADER_SYNC;       // 0xFF
     packet_buffer[2] = 0x01;              // Major Ver
-    packet_buffer[3] = 0x00;              // Minor Ver
+    packet_buffer[3] = 0x01;              // Minor Ver
     packet_buffer[4] = 0;  // Packet body Len, width, height,
     packet_buffer[5] = num_line;          // Board ID
     packet_buffer[6] = line_len;              // Reserved 0

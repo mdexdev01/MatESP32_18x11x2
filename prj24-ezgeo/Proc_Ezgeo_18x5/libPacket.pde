@@ -91,26 +91,32 @@ int parseData_EZGEO(byte[] read_data) {
 
   // println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
 
-  parseData_BottomLeftStart(read_data, board_id);
+  parseData_EzgeoReordering(read_data, board_id);
   
   return 0;
 
 }
 
 
-int parseData_BottomLeftStart(byte[] read_data, int board_index) {
-  int offset = 0; 
-
-  matView_A.fillPacketBytes(read_data, PACKET_HEADER_LEN);
+int parseData_EzgeoReordering(byte[] read_data, int board_index) {
 
   for(int row = 0 ; row < packetRows ; row++ ){ //  ROW = 20
-    for(int x = 0 ; x < packetColumns ; x++) {   //  COL = 16
-
+    for(int x = 0 ; x < packetColumns ; x++) {   //  COL = 5
       int xy_pos = packetColumns * row + x;
-      // matView_A.cellsValue[xy_pos] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
+
+      if( (row %2) == 1 ) {
+        int offset = packetColumns * row + (packetColumns - 1 - x);
+        matView_A.cellsValue[offset] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
+
+      }
+      else {
+        matView_A.cellsValue[xy_pos] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
+      }
 
     }
   }
+
+  // matView_A.fillPacketBytes(read_data, PACKET_HEADER_LEN);
 
   return 0;
 }
