@@ -1,6 +1,6 @@
 #include "esp_system.h"
 
-int TIMER_DUR_MS = 250;   // 250ms
+int TIMER_DUR_MS = 30;   // 250ms
 const int MStoUM = 1000;  // time in ms to trigger the watchdog
 hw_timer_t* timer = NULL;
 

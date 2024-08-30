@@ -81,6 +81,7 @@ int pin485U1DE = 19;
 
 void setup_HWPins_Grib() {
   pinMode(pin485U1DE, OUTPUT);
+  digitalWrite(pin485U1DE, LOW); // LOW : RX, HIGH : TX
 
   analogReadResolution(RESOLUTION_BITS);  // set the resolution of analogRead results
                                           //  - maximum: 14 bits (maximum ADC resolution)

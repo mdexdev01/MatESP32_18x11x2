@@ -72,10 +72,12 @@ void configPacket(int num_col, int num_row) {
 //-------------------------------------------------------------
 //  PARSE PACKET
 //-------------------------------------------------------------
-int parseData_EZGEO(byte[] read_data) {
+
+int parseData_BrandContents(byte[] read_data) {
   int parse_error = 0;
 
   if (false == (  (byteToInt(read_data[0]) == HEADER_SYNC) && (byteToInt(read_data[1]) == HEADER_SYNC) )) {
+    println("bad packet");
     parse_error = -1;
     return parse_error;
   }
@@ -83,45 +85,25 @@ int parseData_EZGEO(byte[] read_data) {
   int major_ver   = byteToInt(read_data[2]);
   int minor_ver   = byteToInt(read_data[3]);
 
-  int packet_len  = byteToInt(read_data[4]);
-  int board_id    = byteToInt(read_data[5]);
+  int num_row     = byteToInt(read_data[4]);
+  int num_col     = byteToInt(read_data[5]);
 
-  int reserved_0  = byteToInt(read_data[6]);
+  int board_id    = byteToInt(read_data[6]);
   int reserved_1  = byteToInt(read_data[7]);
 
-  // println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
+  int packet_len = num_row * num_col;
 
-  parseData_EzgeoReordering(read_data, board_id);
-  
-  return 0;
+  println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
 
-}
-
-
-int parseData_EzgeoReordering(byte[] read_data, int board_index) {
-
-  for(int row = 0 ; row < packetRows ; row++ ){ //  ROW = 20
-    for(int x = 0 ; x < packetColumns ; x++) {   //  COL = 5
-      int xy_pos = packetColumns * row + x;
-
-      if( (row %2) == 1 ) {
-        int offset = packetColumns * row + (packetColumns - 1 - x);
-        matView_A.cellsValue[offset] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
-
-      }
-      else {
-        matView_A.cellsValue[xy_pos] = byteToInt(read_data[PACKET_HEADER_LEN + xy_pos]);
-      }
-
-    }
-  }
-
-  // matView_A.fillPacketBytes(read_data, PACKET_HEADER_LEN);
+  if((board_id < 0) || (2 < board_id))
+    return 0;
+    
+  matView_A[board_id].fillPacketBytes(read_data, PACKET_HEADER_LEN);
 
   return 0;
 }
 
-
+ 
 ///////////////////////////////////////////////////////////////////////////////////
 //    SERIAL PORT THREAD (OPEN, READ)
 ///////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +125,7 @@ void openSerialPort(String portName) {
 void openSerialPort2(String portName) {
   try {
     myPort2 = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
+    // myPort2 = new Serial(this, portName, 1000000); // 115200 : should be same to the setting in Arduino code.
   } catch (Exception e) {
       println(e.toString());
       isPortOpened2 = false;
@@ -172,6 +155,7 @@ boolean openSerialOrExit() {
   String portName = PORT_NAME; // "COM17"
 
   myPort = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
+  // myPort = new Serial(this, portName, 1000000); // 115200 : should be same to the setting in Arduino code.
 
   drawTextLog(portName + " port is opened...");
 
@@ -214,19 +198,25 @@ boolean taskSerial0xFE_01() {
     //  ==> https://processing.org/reference/libraries/serial/Serial_readStringUntil_.html
     read_len = myPort.readBytesUntil(TAIL_SYNC, PacketRawData); // read 1 whole buffer.
 
-    if(read_len == PACKET_LEN_TYPE0) {
+    if(read_len == 0) {
+      continue;
+    }
+    else if(read_len == PACKET_LEN_TYPE0) {
       System.arraycopy(PacketRawData, 0, PacketData, 0, PACKET_LEN_TYPE0);
       // println("packet 0 good");
     }
     else {
-      // println("read_len = " + read_len + " of " + available_len
-      //           + "[0]" + PacketRawData[0] + "[read_len-2]" + PacketRawData[read_len-2] + "[read_len-1]" + PacketRawData[read_len-1]);
-      //println(PacketData);
+      if(2 < read_len) {
+        println("read_len = " + read_len + " of " + available_len
+                  + "[0]" + PacketRawData[0] + "[read_len-2]" + PacketRawData[read_len-2] + "[read_len-1]" + PacketRawData[read_len-1]);
+        println(PacketData);
+      }
       delay(1);
       continue;
     }
 
-    parseData_EZGEO(PacketData);
+    // parseData_EZGEO(PacketData);
+    parseData_BrandContents(PacketData);
 
     countNull = 0;
 

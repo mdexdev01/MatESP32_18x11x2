@@ -15,7 +15,8 @@
 #define SERIAL_SIZE_TX 512   // used in Serial.setRxBufferSize()
 #define SERIAL_SIZE_RX 1024  // used in Serial.setRxBufferSize()
 
-#define BAUD_RATE 230400
+#define BAUD_RATE0 230400
+#define BAUD_RATE1 1000000
 
 //---------------------------------------------
 //  Protocol - Packet
@@ -31,9 +32,9 @@ byte packetBuf[PACKET_LEN];
 #define IDX_HEADER_1 1
 #define IDX_MAJOR_VER 2
 #define IDX_MINOR_VER 3
-#define IDX_BODY_LEN 4
-#define IDX_BOARD_ID 5  // TOP(UART MASTER) : 0, BOTTOM(UART SLAVE) : 1
-#define IDX_RES_0 6
+#define IDX_BODY_ROW 4
+#define IDX_BODY_COL 5
+#define IDX_BOARD_ID 6  // TOP(UART MASTER) : 0, BOTTOM(UART SLAVE) : 1
 #define IDX_RES_1 7
 
 #define IDX_TAIL_0 (PACKET_LEN - 2)
@@ -70,6 +71,9 @@ extern int adc_scan_count_main;
 void sendPacket0(byte *packet_buffer, int packet_len);
 void printPacket(byte *packet_buffer, int packet_len);
 
+
+
+
 //---------------------------------------------
 //  Function Definitions
 //---------------------------------------------
@@ -90,26 +94,107 @@ byte trimVal8(byte raw_value) {
 }
 
 
-int deliverSlaveUart() {
-
+int deliverSlaveUart2() {
   int size_avail = Serial1.available();
   if (size_avail == 0) {
-      // Serial.println("deliver nothing");
-      return -1;
+    // Serial.println("deliver nothing");
+    delay(4);
+    return -1;
   } else if (size_avail < PACKET_LEN) {
-      // Serial.printf("deliver small (%d) \n", size_avail);
-      return -1;
+    // Serial.printf("deliver small (%d) \n", size_avail);
+    delay(2);
+    return -1;
   }
+
 
   // readBytesUntil(0xFE, , ) : It reads as far as just before 0xFE. It doesn't include 0xFE.
   int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail);
   int size_left = Serial1.available();
 
-  if ((packetBufSlave[IDX_HEADER_0] == HEADER_SYNC) && (packetBufSlave[IDX_HEADER_1] == HEADER_SYNC)) {
-      packetBufSlave[IDX_TAIL_1] = TAIL_SYNC;  // add 0xFE
+  int jitter = 0;
+  if(PACKET_LEN < (size_read + 1)) {
+    jitter = (size_read + 1) - PACKET_LEN;
+  }
 
-      sendPacket0(packetBufSlave, PACKET_LEN);
+  if ((packetBufSlave[IDX_HEADER_0 + jitter] == HEADER_SYNC) && (packetBufSlave[IDX_HEADER_1 + jitter] == HEADER_SYNC)) {
+      packetBufSlave[IDX_TAIL_1 + jitter] = TAIL_SYNC;  // add 0xFE
+
+      int rx_board_id = packetBufSlave[IDX_BOARD_ID + jitter];
+      int rx_seq = packetBufSlave[IDX_RES_1 + jitter];
+
+      // Serial.printf("RX [%d<-%d], seq:%d<RX \n", dip_decimal, rx_board_id, rx_seq);
+
+      sendPacket0(packetBufSlave + jitter, PACKET_LEN);
       // printPacket(packetBufSlave, PACKET_LEN);
+  }
+
+  size_left = Serial1.available();
+  if (PACKET_LEN < size_left)
+      Serial1.readBytes(packetBufSlave, size_left);
+
+  for (int i = 0; i < 50; i++) {
+      // tempDelay(10);
+      // size_left = Serial1.available();
+      // Serial1.readBytes(packetBufSlave, size_left);
+  }
+
+  deliver_count_slave++;
+
+  return 0;  
+}
+
+boolean tx_grant_board1 = true;
+boolean tx_grant_board2 = false;
+
+int board1_Rx1() {
+
+  int size_avail = Serial1.available();
+  if (size_avail == 0) {
+    // Serial.println("deliver nothing");
+    delay(4);
+    return -1;
+  } else if (size_avail < PACKET_LEN) {
+    Serial.printf("deliver small 2 (%d) \n", size_avail);
+    // int size_read = Serial1.readBytes(packetBufSlave, size_avail);
+
+    // Serial.printf("~~RX1 read %d, board id[%d] \n", size_read, packetBufSlave[IDX_BOARD_ID]);
+    // for(int i = 0 ; i < size_read ; i++) {
+    //   Serial.printf("[%d]%d, ", i, packetBufSlave[i]);
+    // }
+    // Serial.println("~");
+    delay(2);
+    return -1;
+  }
+
+  // readBytesUntil(0xFE, , ) : It reads as far as just before 0xFE. It doesn't include 0xFE.
+  int size_read = Serial1.readBytesUntil(TAIL_SYNC, packetBufSlave, size_avail); // it doesn't include 'Until' byte. so, size_read += 1
+  int size_left = Serial1.available();
+
+  int jitter = 0;
+  if(PACKET_LEN < (size_read + 1)) {
+    jitter = (size_read + 1) - PACKET_LEN;
+  }
+
+  if ((packetBufSlave[IDX_HEADER_0 + jitter] == HEADER_SYNC) && (packetBufSlave[IDX_HEADER_1 + jitter] == HEADER_SYNC)) {
+      packetBufSlave[IDX_TAIL_1 + jitter] = TAIL_SYNC;  // add 0xFE
+
+      int rx_board_id = packetBufSlave[IDX_BOARD_ID + jitter];
+      int rx_seq = packetBufSlave[IDX_RES_1 + jitter];
+
+      Serial.printf("RX [%d<-%d], seq:%d<RX \n", dip_decimal, rx_board_id, rx_seq);
+      if(rx_board_id == 1)
+        tx_grant_board2 = true;
+      else if (rx_board_id == 2)
+        tx_grant_board1 = true;
+
+      // printPacket(packetBufSlave + jitter, PACKET_LEN);
+  }
+  else {
+    Serial.printf("**RX1 read %d, board id[%d] \n", size_read, packetBufSlave[IDX_BOARD_ID]);
+    for(int i = 0 ; i < size_read ; i++) {
+      Serial.printf("[%d]%d, ", i, packetBufSlave[i]);
+    }
+    Serial.println("~");    
   }
 
   size_left = Serial1.available();
@@ -128,20 +213,22 @@ int deliverSlaveUart() {
 }
 
 
+
 void tempDelay(int time_len_ms) {
     delay(time_len_ms);
 }
 
-
+int build_count = 0 ;
 void buildPacket_brandContents(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN][NUM_MUX_OUT], int width, int height) { // height = 16
     packet_buffer[0] = HEADER_SYNC;       // 0xFF
     packet_buffer[1] = HEADER_SYNC;       // 0xFF
     packet_buffer[2] = 0x01;              // Major Ver
     packet_buffer[3] = 0x00;              // Minor Ver
-    packet_buffer[4] = dip_decimal;                 // board id
-    packet_buffer[5] = NUM_REAL_HEIGHT;                // row = height = 12
-    packet_buffer[6] = NUM_REAL_WIDTH;                 // column = width = 10
-    packet_buffer[7] = 0x00;              // Reserved 1
+    packet_buffer[4] = NUM_REAL_HEIGHT;                // row = height = 12
+    packet_buffer[5] = NUM_REAL_WIDTH;                 // column = width = 10
+    packet_buffer[6] = dip_decimal;                 // board id
+    // packet_buffer[7] = 0x00;              // Reserved 1
+    packet_buffer[7] = build_count % 0xEF;              // Reserved 1
 
     int pa_index = HEADER_LEN;
 
@@ -164,6 +251,8 @@ void buildPacket_brandContents(byte *packet_buffer, int adc_mat_buf[MUX_LIST_LEN
 
     packet_buffer[pa_index++] = 0;       //  Reserved 2
     packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+
+    build_count++;
 }
 
 
@@ -195,8 +284,8 @@ void printPacket(byte *packet_buffer, int packet_len) {
   Serial.printf("[%d] %3d  \n", offset, packet_buffer[offset]);
   offset++;
 
-  int matrix_num_unit = packet_buffer[5];
-  int matrix_unit_len = packet_buffer[6];
+  int matrix_num_unit = packet_buffer[4];
+  int matrix_unit_len = packet_buffer[5];
   int body_len = matrix_num_unit * matrix_unit_len;
 
   Serial.printf(" adc data length : %d \n", body_len);

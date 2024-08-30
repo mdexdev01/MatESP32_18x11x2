@@ -19,7 +19,6 @@
   2. 하중으로 변환
 
 */
-
 #include "commPacket.h"
 #include "lib_ble_grib.h"
 #include "lib_gpio.h"
@@ -32,14 +31,15 @@ TaskHandle_t Task_Core0;
 bool stringComplete = false;  // whether the string is complete
 String inputString = "";      // a String to hold incoming data
 
+
 void setup() {
   inputString.reserve(200);
 
   Serial.setTxBufferSize(SERIAL_SIZE_TX);
-  Serial.begin(BAUD_RATE);
+  Serial.begin(BAUD_RATE0);
 
   Serial1.setRxBufferSize(SERIAL_SIZE_RX);
-  Serial1.begin(BAUD_RATE, SERIAL_8N1, 18, 17);
+  Serial1.begin(BAUD_RATE1, SERIAL_8N1, 18, 17);
 
   memset(packetBuf, 0, PACKET_LEN);
 
@@ -75,29 +75,6 @@ void afterSetup(){
   updateDipSwVal();
 }
 
-/*
-void serialEvent() {
-  while (Serial.available()) {
-    // get the new byte:
-    char inChar = (char)Serial.read();
-    Serial.println(inChar);
-    // add it to the inputString:
-    inputString += inChar;
-    // if the incoming character is a newline, set a flag so the main loop can
-    // do something about it:
-    if (inChar == '\n') {
-      stringComplete = true;
-    }
-  }
-
-  if (stringComplete) {
-    Serial.println(inputString);
-    // clear the string:
-    inputString = "";
-    stringComplete = false;
-  }
-}
-*/
 
 int adc_scan_done = false;
 
@@ -105,19 +82,19 @@ int loop_count = 0;
 void loop() {
   // Serial.printf("\nLOOP Count2 = %d \n", loop_count);
   if (adc_scan_done == false) {
-      adcScanMainPage();
-      reorder_sensor_shape();
-      { //  RS485 setting
-        updateDipSwVal();
-        if(dip_decimal == 0) {
-          //  main unit - UART1 : RX
-          digitalWrite(pin485U1DE, LOW); // LOW : RX, HIGH : TX
-        }
-        else {
-          //  sub unit - UART1 : Tx
-          digitalWrite(pin485U1DE, HIGH); // LOW : RX, HIGH : TX
-        }
-      }
+    adcScanMainPage();
+    reorder_sensor_shape();
+    { //  RS485 setting
+      updateDipSwVal();
+      // if(dip_decimal == 0) {
+      //   //  main unit - UART1 : RX
+      //   digitalWrite(pin485U1DE, LOW); // LOW : RX, HIGH : TX
+      // }
+      // else {
+      //   //  sub unit - UART1 : Tx
+      //   digitalWrite(pin485U1DE, HIGH); // LOW : RX, HIGH : TX
+      // }
+    }
   } else {
       delay(1);
   }
@@ -143,8 +120,8 @@ void adcScanMainPage() {
   adc_scan_count_main++;
 }
 
-int deliver_count_main = 0;
-
+int deliver_count_mine = 0;
+int tx_timer_count_last = 0;
 void pumpSerial(void *pParam) {
   Serial.printf("PUMP- ENTER\n");
   while (true) {
@@ -153,43 +130,64 @@ void pumpSerial(void *pParam) {
       continue;
     }
 
-    //  SENSOR DATA - SLAVE
-    //  true : deliver master + slave. false : deliver only master
-    //  if partial packet mode, it delivers all the partial packets of a single full packet in a while loop.
+    //  Deilvery : Main job
     if(dip_decimal == 0) { // Main board
-      while (true) {
-        int ret_val = deliverSlaveUart();  // enable only for the Master
+      for(int i = 0 ; i < 2 ; i++){
+        while (true) {
+          int ret_val = deliverSlaveUart2();  // enable only for the Master
 
-        if (ret_val <= 0)
-            break;
+          if (ret_val <= 0)
+              break;
+        }
       }
     }
+    else if (dip_decimal == 1) {
+      board1_Rx1();      
+    }
+    else if (dip_decimal == 2) {
+      board1_Rx1();      
+    }
 
-    //  SENSOR DATA - MAIN
+    //  Build and Send
     // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
     buildPacket_brandContents(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
 
     if(timer_flag == true) {
-      // ets_printf("timer on  %d, (%d) \n", timer_count, millis());
+      // Serial.printf("TX timer loop count = %d \n", deliver_count_mine);
 
-      if(dip_decimal == 0) {
-        sendPacket0(packetBuf, PACKET_LEN);
+      switch(dip_decimal) {
+        case 0: 
+          sendPacket0(packetBuf, PACKET_LEN);
+          break;
+        case 1:
+          if(tx_grant_board1 == true) {
+            sendPacket1(packetBuf, PACKET_LEN);
+            tx_grant_board1 = false;
+            tx_timer_count_last = deliver_count_mine;
+          }
+          break;
+        case 2:
+          if(tx_grant_board2 == true) {
+            sendPacket2(packetBuf, PACKET_LEN);
+            tx_grant_board2 = false;
+            tx_timer_count_last = deliver_count_mine;
+          }
+          break;
       }
-      else {
-        sendPacket1(packetBuf, PACKET_LEN);
-      }
+
+      if( 2 < (deliver_count_mine - tx_timer_count_last))
+        tx_grant_board1 = tx_grant_board2 = true;
+
+      deliver_count_mine++;
       timer_flag = false;
+      adc_scan_done = false;
     }
 
-
-    adc_scan_done = false;
     tempDelay(1);
 
-    deliver_count_main++;
   }  // while
 }
-
-
+ 
 //  send data to the PC
 void sendPacket0(byte *packet_buffer, int packet_len) {
   Serial.write(packet_buffer, packet_len);
@@ -206,9 +204,30 @@ void sendPacket1(byte *packet_buffer, int packet_len) {
   
   Serial1.write(packet_buffer, packet_len);
   // Serial.write(packet_buffer, packet_len);
+  delay(2);
+  digitalWrite(pin485U1DE, LOW); // LOW : RX, HIGH : TX
+
+  Serial.printf("TX [%d]. --> seq:%d>TX \n", dip_decimal, packet_buffer[IDX_RES_1]);
 
   //  log all data.
-  printPacket(packet_buffer, packet_len);
+  // printPacket(packet_buffer, packet_len);
+}
+
+
+//  send data to the PC
+void sendPacket2(byte *packet_buffer, int packet_len) {
+  digitalWrite(pin485U1DE, HIGH); // LOW : RX, HIGH : TX
+  // Serial1.printf("Hello \n");
+  
+  Serial1.write(packet_buffer, packet_len);
+  // Serial.write(packet_buffer, packet_len);
+  delay(2);
+  digitalWrite(pin485U1DE, LOW); // LOW : RX, HIGH : TX
+
+  Serial.printf("TX [%d]. --> seq:%d>TX \n", dip_decimal, packet_buffer[IDX_RES_1]);
+
+  //  log all data.
+  // printPacket(packet_buffer, packet_len);
 }
 
 

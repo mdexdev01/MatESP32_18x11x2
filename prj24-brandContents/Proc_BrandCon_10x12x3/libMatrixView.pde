@@ -95,6 +95,8 @@ class libMatrixView {
     println(String.format("-------- Load CSV file - Cell Position -------"));
     
     //-----------------
+    int num_block = 0;
+    
     int num_col = 0;
     int num_row = 0;
     int x_start = 0;
@@ -104,9 +106,9 @@ class libMatrixView {
     int y_pitch = 0;
     int y_height = 0;
 
-    int i = 0;
     //---------------------------------
     //  load csv file 
+    println("table rows = " + table.getRowCount());
     try {
       for (TableRow row : table.rows()) {
         //  		X-start	X-pitch	X-width	Y-start	Y-pitch	Y-height
@@ -125,9 +127,9 @@ class libMatrixView {
         println(String.format("\t[libMatrix %s] [X] start=%d, pitch=%d, lenghth=%d, [Y] start=%d, pitch=%d, lenghth=%d", 
               viewNick, x_start, x_pitch, x_width, y_start, y_pitch, y_height));
 
-        i++;
+        num_block++;
 
-        if(i == 1)
+        if(num_block == 1)
           break;
       }
     } catch (Exception e) {

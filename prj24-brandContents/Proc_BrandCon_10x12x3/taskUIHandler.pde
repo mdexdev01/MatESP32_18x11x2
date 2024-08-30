@@ -31,8 +31,8 @@ void drawTextLog(String strText) {
 
 void setup_UI() {
 
-  bgi_logo_120ch = loadImage("./res/logo_Title.png");
-  image(bgi_logo_120ch, window_size_x - 300, 0);
+  bgi_logo_120ch = loadImage("./res/logo-Title.jpg");
+  image(bgi_logo_120ch, window_size_x - 160, 0);
 
   bgi_logo_mdex = loadImage("./res/logo_mdex(kor).png");
   image(bgi_logo_mdex, window_size_x - 220, window_size_y - 50);
@@ -247,7 +247,7 @@ void controlEvent(CallbackEvent event) {
           csv_btn_state = true;
           event.getController().setLabel(CSV_BTN_TRUE);
 
-          MATRIX_SAVE_CSV_open(matView_A);          
+          MATRIX_SAVE_CSV_open(matView_A[0]);          
           timerSaveCSV.reset();
           timerSaveCSV.cycleStart(SAVE_INTERVAL_MS);
         }
