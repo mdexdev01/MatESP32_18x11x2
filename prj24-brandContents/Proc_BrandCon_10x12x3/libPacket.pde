@@ -72,6 +72,8 @@ void configPacket(int num_col, int num_row) {
 //-------------------------------------------------------------
 //  PARSE PACKET
 //-------------------------------------------------------------
+int parse_count = 0;
+int board_count[] = new int [3];
 
 int parseData_BrandContents(byte[] read_data) {
   int parse_error = 0;
@@ -93,12 +95,28 @@ int parseData_BrandContents(byte[] read_data) {
 
   int packet_len = num_row * num_col;
 
-  println("board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
-
-  if((board_id < 0) || (2 < board_id))
+  switch(board_id) {
+  case 0:
+    board_count[0]++;
+    break;
+  case 1:
+    board_count[1]++;
+    break;
+  case 2:
+    board_count[2]++;
+    break;
+  default :
     return 0;
-    
+  }
+
   matView_A[board_id].fillPacketBytes(read_data, PACKET_HEADER_LEN);
+
+  // println("[" + parse_count + "]board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
+
+  if( (board_count[0] % 100) == 0)
+    println("COUNT : board[0]:" + board_count[0] + " board[1]:" + board_count[1] + "(" + (board_count[1]-board_count[0]) + ")" + " board[2]:" + board_count[2] + "(" + (board_count[2]-board_count[0])+ ")");
+
+  parse_count++;
 
   return 0;
 }
@@ -121,7 +139,7 @@ void openSerialPort(String portName) {
   }
 }
 
-//  Serial example
+//  NOT USED
 void openSerialPort2(String portName) {
   try {
     myPort2 = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
@@ -154,8 +172,8 @@ boolean openSerialOrExit() {
   //  "Silicon Labs CP210x USB to UART Bridge"
   String portName = PORT_NAME; // "COM17"
 
-  myPort = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
-  // myPort = new Serial(this, portName, 1000000); // 115200 : should be same to the setting in Arduino code.
+  // myPort = new Serial(this, portName, 230400); // 115200 : should be same to the setting in Arduino code.
+  myPort = new Serial(this, portName, 2000000); // 115200 : should be same to the setting in Arduino code.
 
   drawTextLog(portName + " port is opened...");
 

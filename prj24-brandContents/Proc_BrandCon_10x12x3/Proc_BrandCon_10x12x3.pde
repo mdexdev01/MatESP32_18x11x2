@@ -33,11 +33,11 @@ EditRect  textLog;
 
 void setup() {
   // size(1920, 1080);
-  size(880, 1000);
-  window_size_x = 880;
-  window_size_y = 1000;
+  size(820, 860);
+  window_size_x = 820;
+  window_size_y = 860;
 
-  surface.setTitle("EZGEO-Air Mat Sensor");
+  surface.setTitle("Dog Mat Sensor - Brand Contents");
   surface.setResizable(true);
   surface.setLocation(0, 0);
 

@@ -15,7 +15,8 @@
 #define SERIAL_SIZE_TX 512   // used in Serial.setRxBufferSize()
 #define SERIAL_SIZE_RX 1024  // used in Serial.setRxBufferSize()
 
-#define BAUD_RATE0 230400
+// #define BAUD_RATE0 230400
+#define BAUD_RATE0 2000000
 #define BAUD_RATE1 1000000
 
 //---------------------------------------------

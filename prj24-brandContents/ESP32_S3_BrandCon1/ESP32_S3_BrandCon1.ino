@@ -44,7 +44,7 @@ void setup() {
   memset(packetBuf, 0, PACKET_LEN);
 
   // Serial.printf("SETUP-GPIO \n");
-  // setup_gpioWork();
+  setup_gpioWork();
 
   Serial.printf("SETUP-HW PINS \n");
   setup_HWPins_Grib();

@@ -32,10 +32,10 @@ void drawTextLog(String strText) {
 void setup_UI() {
 
   bgi_logo_120ch = loadImage("./res/logo-Title.jpg");
-  image(bgi_logo_120ch, window_size_x - 160, 0);
+  image(bgi_logo_120ch, window_size_x - 160, 10);
 
   bgi_logo_mdex = loadImage("./res/logo_mdex(kor).png");
-  image(bgi_logo_mdex, window_size_x - 220, window_size_y - 50);
+  image(bgi_logo_mdex, window_size_x - 200, window_size_y - 50);
 
   setup_cp5();
 }
@@ -60,7 +60,7 @@ void setup_cp5() {
 
 
   pos_x = window_size_x - 250;
-  pos_y = 60;
+  pos_y = 20;
   EditRect lineRect = new EditRect(pos_x, pos_y, 2, window_size_y - (pos_y + 10));
   lineRect.render();
 
@@ -117,7 +117,7 @@ void setup_cp5() {
   //  FILE NAME
   {
     // pos_x = 5;
-    pos_y = window_size_x - 350;
+    pos_y = window_size_y - 550;
 
     int control_width = 0;
 
