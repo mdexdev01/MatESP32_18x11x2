@@ -34,13 +34,16 @@ void loop_wdTimer() {
   if (timer_count_old != timer_count) {  // if(timer_count_old < timer_count) ==> it is normal. but it cannot protect overflow.
     timer_flag = true;
     timer_count_old = timer_count;
+    // Serial.println("timer done");
   }
 }
 
 void changeTimerDurMS(int milliSecond) {
   timerAlarmWrite(timer, milliSecond * MStoUM, true);  // set time in us
+  timerAlarmEnable(timer);                              // enable interrupt
 }
 
 void changeTimerDurUS(int microSecond) {
   timerAlarmWrite(timer, microSecond, true);  // set time in us
+  timerAlarmEnable(timer);                              // enable interrupt
 }

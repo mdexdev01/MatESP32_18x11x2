@@ -96,11 +96,11 @@ void setup_cp5() {
                       .setFont(createFont("Arial",14));
     
     cp5.addTextfield(SerialNoteLabel)
-        .setPosition(pos_x + 80, pos_y)
-        .setSize(25,25)
-        .setText(userPref.getValue(userPref.itemPort1))
-        .setFont(createFont("Arial",12))
-        .setColor(hsb_cyan);
+                      .setPosition(pos_x + 80, pos_y)
+                      .setSize(25,25)
+                      .setText(userPref.getValue(userPref.itemPort1))
+                      .setFont(createFont("Arial",12))
+                      .setColor(hsb_cyan);
 
     // cp5.addTextfield(".")
     //     .setPosition(pos_x + 110, pos_y)
