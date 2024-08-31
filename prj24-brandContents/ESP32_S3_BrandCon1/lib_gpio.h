@@ -4,8 +4,9 @@
 #include <avr/power.h>  // Required for 16 MHz Adafruit Trinket
 #endif
 
-#include "libLED_Object.h"
 #include "lib_wdtimer.h"
+#include "configPins.h"
+#include "libLED_Object.h"
 
 
 #define pin_LED_WS2812C 48

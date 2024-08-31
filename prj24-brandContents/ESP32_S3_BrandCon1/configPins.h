@@ -18,6 +18,8 @@
   //  right pins  :  43,44,1,2,42,  41,40,39,38,37,   36,35,0,45,48,    47,21,20,19
 */
 
+#ifndef CONFIGPINS_H_
+#define CONFIGPINS_H_
 //-----------------------------------------------------
 //  Active Mux index
 //-----------------------------------------------------
@@ -301,3 +303,4 @@ void reorder_sensor_shape() {
 
 }
 
+#endif // CONFIGPINS_H_

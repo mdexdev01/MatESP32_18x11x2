@@ -208,7 +208,7 @@ boolean taskSerial0xFE_01() {
         println("Serial is not connected");
       }
 
-      delay(20);
+      delay(5);
       continue;
     }
 

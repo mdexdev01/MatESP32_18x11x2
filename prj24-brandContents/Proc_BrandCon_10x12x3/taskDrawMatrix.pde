@@ -53,7 +53,7 @@ boolean calculate_MatrixView() {
   
   //-----------------------------------------------
   //  step 3. draw the x and y gauge of "center of mass"
-  // PVector   vectorCOM_A = matView_A.getVectorCOM();
+  // PVector   vectorCOM_A = matView_A[0].getVectorCOM();
   //drawTextLog(String.format("Center Of Mass (X, Y) = LEFT (%2.3f, %2.3f), Right (%2.3f, %2.3f)"
   //                      , vectorCOM_A.x, vectorCOM_A.y, vectorCOM_B.x, vectorCOM_B.y));
   
