@@ -1,0 +1,21 @@
+[설치]
+
+1) ESP32-S3 USB 드라이버 설치
+ - CP2104 for ESP32 S3) https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+ - CH340 (불필요) https://learn.sparkfun.com/tutorials/how-to-install-ch340-drivers/all#meet-the-ch340
+
+2) 아두이노 (옵션) 펌웨어 변경 필요시에만 설치
+ - 아두이노 설치
+ - 보드 URL 추가. https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+ - 도구 > 보드 매니저 > 아래 보드 라이브러리 설치 - ESP32
+
+3) 프로세싱
+ - 프로세싱 설치)  https://processing.org/download
+ - 라이브러리 설치) Tools > Manage Tools > Libraries > "ControlP5"를 검색 후 설치. 같은 요령으로 "Interfascia"를 검색후 설치
+
+4) 실행
+ - 프로세싱 소스코드가 있는 폴더를 연다
+ - 확장자가 pde 인 파일 아무거나 더블클릭
+ - 좌측 상단의 삼각형 클릭
+ - USB 포트 번호를 입력한다. 번호를 모른다면 윈도우 > 장치 관리자 > COM 에서 CP2104로 시작하는 기기의 포트 번호를 기입한다.
+ - 'Open'버튼을 클릭한다.
