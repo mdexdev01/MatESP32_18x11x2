@@ -60,7 +60,11 @@ class MyServerCallbacks : public BLEServerCallbacks {
 
 class MyCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pCharacteristic) {
-        std::string rxValue = pCharacteristic->getValue();
+        // std::string rxValue = pCharacteristic->getValue();
+        String rxValue = pCharacteristic->getValue();
+
+        // Convert Arduino String to std::string
+        std::string stdRxValue = std::string(rxValue.c_str());
 
         if (rxValue.length() > 0) {
             Serial.println("*********");
@@ -148,7 +152,8 @@ void init_beacon() {
 
         // std::string((char*) &m_beaconData, sizeof(m_beaconData));
 
-        advertisementData.setManufacturerData(std::string((char*)manufacturer_specific_data, sizeof(manufacturer_specific_data)));
+        // advertisementData.setManufacturerData(std::string((char*)manufacturer_specific_data, sizeof(manufacturer_specific_data)));
+        advertisementData.setManufacturerData(String((char*)manufacturer_specific_data, sizeof(manufacturer_specific_data)));
     }
 
     pAdvertising->setAdvertisementData(advertisementData);

@@ -7,7 +7,7 @@
 2) 아두이노 (옵션) 펌웨어 변경 필요시에만 설치
  - 아두이노 설치
  - 보드 URL 추가. https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
- - 도구 > 보드 매니저 > 아래 보드 라이브러리 설치 - ESP32
+ - 도구 > 보드 매니저 > ESP32로 검색 > 여러개 중에 Espressif 가 공급한 것을 선택/설치.
 
 3) 프로세싱
  - 프로세싱 설치)  https://processing.org/download

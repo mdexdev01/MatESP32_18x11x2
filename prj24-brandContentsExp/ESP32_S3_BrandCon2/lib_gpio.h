@@ -46,7 +46,7 @@ void ARDUINO_ISR_ATTR isr2(void* arg) {
   Button* s = static_cast<Button*>(arg);
   button2.numberKeyPresses += 1;
   button2.changed = true;
-  ets_printf("isr[2] %d, %s \n", s->numberKeyPresses, s->nickName);
+  // ets_printf("isr[2] %d, %s \n", s->numberKeyPresses, s->nickName);
 }
 
 

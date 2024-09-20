@@ -14,10 +14,20 @@ void ARDUINO_ISR_ATTR onTimer() {
 }
 
 void setup_wdTimer() {
+/*  
+  //  timer esp32 bsp V.2.1.4
   timer = timerBegin(0, 80, true);                      // timer 0, div 80
   timerAttachInterrupt(timer, &onTimer, true);          // attach callback
   timerAlarmWrite(timer, MStoUM * TIMER_DUR_MS, true);  // set time in us
   timerAlarmEnable(timer);                              // enable interrupt
+*/
+  //  timer esp32 bsp V.3.0
+  timer = timerBegin(1000000);                     //timer 1Mhz resolution
+  // timerAttachInterrupt(timer, &resetModule);       //attach callback
+  timerAttachInterrupt(timer, &onTimer);       //attach callback
+
+  timerAlarm(timer, TIMER_DUR_MS * MStoUM, true, 0);  //set time in us
+
 }
 
 
@@ -38,6 +48,7 @@ void loop_wdTimer() {
   }
 }
 
+/*
 void changeTimerDurMS(int milliSecond) {
   timerAlarmWrite(timer, milliSecond * MStoUM, true);  // set time in us
   timerAlarmEnable(timer);                              // enable interrupt
@@ -47,3 +58,4 @@ void changeTimerDurUS(int microSecond) {
   timerAlarmWrite(timer, microSecond, true);  // set time in us
   timerAlarmEnable(timer);                              // enable interrupt
 }
+*/
