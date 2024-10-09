@@ -9,6 +9,7 @@
   DESC : SRAM 512K, ROM 384K, FLASH 8M, PSRAM 2M
   CONFIG : Flash QIO 80MHz, OPI PSRAM, Partition Minimal SPIFFS, others : apply default setting
   URL : https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1-v1.0.html
+  Board Manager : Arduino ESP32 Boards Ver.2.0.13 (Critical for the timer)
 
   < Reference >
   MultiTask : https://blog.naver.com/PostView.naver?blogId=crucian2k3&logNo=222069416341&parentCategoryNo=&categoryNo=58&viewDate=&isShowPopularPosts=true&from=search
@@ -27,7 +28,12 @@ TaskHandle_t Task_Core0;
 #define CORE_0 0
 #define CORE_1 1
 
+bool stringComplete = false;  // whether the string is complete
+String inputString = "";      // a String to hold incoming data
+
 void setup() {
+    inputString.reserve(200);
+
     Serial.setTxBufferSize(SERIAL_SIZE_TX);
     Serial.begin(BAUD_RATE);
 
@@ -59,6 +65,30 @@ void setup() {
         CORE_0);       // 실행될 코어
 }
 
+
+void serialEvent() {
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();
+    Serial.println(inChar);
+    // add it to the inputString:
+    inputString += inChar;
+    // if the incoming character is a newline, set a flag so the main loop can
+    // do something about it:
+    if (inChar == '\n') {
+      stringComplete = true;
+    }
+  }
+
+  if (stringComplete) {
+    Serial.println(inputString);
+    // clear the string:
+    inputString = "";
+    stringComplete = false;
+  }
+}
+
+
 int adc_scan_done = false;
 
 int loop_count = 0;
@@ -72,7 +102,7 @@ void loop() {
 
     loop_wdTimer();
     loop_gpioWork();
-    loop_advGrib();
+    // loop_advGrib();
 
     loop_count++;
 }
@@ -106,7 +136,12 @@ void pumpSerial(void *pParam) {
       //  SENSOR DATA - MAIN
       buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
 
-      sendPacket(packetBuf, PACKET_LEN);
+      if(timer_flag == true) {
+        // ets_printf("timer on  %d, (%d) \n", timer_count, millis());
+        sendPacket(packetBuf, PACKET_LEN);
+        timer_flag = false;
+      }
+
 
       adc_scan_done = false;
       // tempDelay(1000);
@@ -118,6 +153,7 @@ void pumpSerial(void *pParam) {
 void sendPacket(byte *packet_buffer, int packet_len) {
     //  send data to the PC
     Serial.write(packet_buffer, packet_len);
+    Serial1.write(packet_buffer, packet_len);
 
     //  log all data.
     // printPacket(packet_buffer, packet_len);

@@ -1,4 +1,5 @@
-
+#include <mdex_util24.h>
+          
 const int NUM_OF_MUX = 15;
 int pinMuxEn[NUM_OF_MUX]    = { 41, 7, 40, 15, 39, 16, 38, 17, 37, 18, 36, 8, 35, 19, 20}; // Luxtep 15x15
 
@@ -32,6 +33,7 @@ void adcScanMainPage();
 void adcPlanePage();
 void print_adc();
 
+MDEX_Util24 * MdexUtil;
 
 void setup_adc() {
   analogReadResolution(RESOLUTION_BITS); // set the resolution of analogRead results
@@ -52,6 +54,8 @@ void setup_adc() {
   S1 = pinMuxSig[1];
   S2 = pinMuxSig[2];
   S3 = pinMuxSig[3];
+
+  MdexUtil = new MDEX_Util24();
 
   delay(5);
 }
@@ -80,21 +84,15 @@ int muxSig4PinsVal[NUM_MUX_OUT][NUM_MUX_SIG] = {
 /*
   USAGE : int value = read_1ch_in_mux(i); // i = 0~15
 */
-int read_1ch_in_mux(int mux_ch, int threshold){
+int read_1ch_in_mux(int mux_ch, int cut_off){
     // config signal 4 pins
     for (int i = 0; i < NUM_MUX_SIG; i++){
         digitalWrite(pinMuxSig[i], muxSig4PinsVal[mux_ch][i]);
     }
 
     int adc_raw = analogRead(pinADC);
-    if(adc_raw < threshold) {
-      adc_raw = 0;
-    }
-    else {
-      adc_raw -= threshold;
-    }
 
-    adc_raw = adc_raw* 2.8;
+    adc_raw = MDEX_Util24::conv_1515a(adc_raw, cut_off, 240, 0);
 
     return adc_raw;
 }
@@ -102,9 +100,9 @@ int read_1ch_in_mux(int mux_ch, int threshold){
 /*
   USAGE : int value[16]; read_16ch_in_mux(value); // value buffer will be filled.
 */
-void read_16ch_in_mux(int *buf_16, int threshold){
+void read_16ch_in_mux(int *buf_16, int cut_off){
     for (int i = 0; i < NUM_MUX_OUT; i++){
-        buf_16[i] = read_1ch_in_mux(i, threshold);
+        buf_16[i] = read_1ch_in_mux(i, cut_off);
         // delay(5);
     }
 }
@@ -196,7 +194,6 @@ void loop_adc(){
       {
           // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_MUX_OUT);
 
-          // loop_advGrib(packetBuf, PACKET_LEN);
           // sendPacket(packetBuf, PACKET_LEN);
       }
 
