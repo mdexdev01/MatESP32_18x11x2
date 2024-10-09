@@ -25,7 +25,7 @@ int window_size_y = 1080;
 
 //==========================================================
 //  FOR DEBUG and LOG
-EditRect  textLog;
+  EditRect  textLog;
 
 //==========================================================
 //  UTILITY FUNCTIONS
@@ -43,7 +43,8 @@ void setup() {
 
   colorMode(HSB, 360, 100, 100); //  https://codepen.io/HunorMarton/details/eWvewo
 
-  background(0, 0, 85); // (220, 80, 15) : dark blue, (0, 0, 100) : white
+  background(0, 0, 100); // (220, 80, 15) : dark blue, (0, 0, 100) : white
+  //background(0, 0, 85); // (220, 80, 15) : dark blue, (0, 0, 100) : white
   //background(220, 80, 15); // (220, 80, 15) : dark blue, (0, 0, 100) : white
   //background(220, 80, 15);// : dark blue, (0, 0, 100) : white
 
@@ -69,8 +70,8 @@ int sensor_frame_count = 0;
 
 void draw() {
   if(isPortOpened == false) {
-    update_UI();
     draw_MatrixView();
+    update_UI();
   }
   if(flag_read == false) 
     return;

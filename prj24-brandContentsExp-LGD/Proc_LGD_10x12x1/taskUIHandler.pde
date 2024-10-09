@@ -31,8 +31,8 @@ void drawTextLog(String strText) {
 
 void setup_UI() {
 
-  //bgi_logo_120ch = loadImage("./res/logo-Title.jpg");
-  //image(bgi_logo_120ch, window_size_x - 160, 10);
+  bgi_logo_120ch = loadImage("./res/logo-Title.jpg");
+  image(bgi_logo_120ch, window_size_x - 220, 15);
 
   bgi_logo_mdex = loadImage("./res/logo_mdex(kor).png");
   image(bgi_logo_mdex, window_size_x - 200, window_size_y - 50);
@@ -43,7 +43,7 @@ void setup_UI() {
 void setup_cp5() {
   cp5 = new ControlP5(this);
   
-  PFont font_small = createFont("arial",14);
+  PFont font_small = createFont("TAHOMA",14);
   PFont font_mid   = createFont("arial",24);
   PFont font_large = createFont("arial",40);
  
@@ -91,16 +91,27 @@ void setup_cp5() {
     pos_y = 150;
     cp5.addTextlabel("label_Serial")
                       .setText("Serial Port :")
-                      .setPosition(pos_x, pos_y)
-                      .setColorValue(0xff555555)
-                      .setFont(createFont("Arial",14));
-    
+                      .setPosition(pos_x, pos_y + 6)
+                      //.setColorValue(0xff555555)
+                      .setColorValue(0xEE0000BF)
+                      .setFont(createFont("Tahoma",14))
+                      ;
+                      //.setColorBackground(0xEE000000)
+                      //.setColorForeground(0xff222222)
+                      //.setColorValue(0xFFEEFFEE)
+                      //.setColorLabel(0xEE0000BF)    
+
     cp5.addTextfield(SerialNoteLabel)
                       .setPosition(pos_x + 80, pos_y)
                       .setSize(25,25)
                       .setText(userPref.getValue(userPref.itemPort1))
-                      .setFont(createFont("Arial",12))
-                      .setColor(hsb_cyan);
+                      .setFont(createFont("Tahoma",12))
+                      .setColorBackground(0xEE000000)
+                      .setColorForeground(0xff222222)
+                      .setColorValue(0xFFEEFFEE)
+                      .setColorLabel(0xFFFFFFFF)
+                      //.setColor(hsb_cyan)
+                      ;
 
     // cp5.addTextfield(".")
     //     .setPosition(pos_x + 110, pos_y)
@@ -114,65 +125,75 @@ void setup_cp5() {
   }
   
   //----------------------------------------
-  //  FILE NAME
-  {
-    // pos_x = 5;
-    pos_y = window_size_y - 420;
-
-    int control_width = 0;
-
-    
-    control_width = 90;
-    cp5.addTextlabel("tag_FILENAME")
-                      .setText("File Name(Eng) :")
-                      .setPosition(pos_x, pos_y)
-                      .setColorValue(0xff0060ff)
-                      .setFont(font_small)
-                      ;
-
-    pos_y += 30;
-    control_width = 180;
-    cp5.addTextfield("NAME")
-        .setPosition(pos_x + 10, pos_y).setSize(control_width, 25)
-        .setText("John Doe")
-        .setFont(font_small)
-        .setColor(hsb_cyan)
-        ;
-    
-    pos_y += 50;
-    cp5.addTextfield("MEMO")
-        .setPosition(pos_x + 10, pos_y).setSize(control_width, 25)
-        .setText("MEMO")
-        .setFont(font_small)
-        .setColor(hsb_cyan)
-        ;
-
-    control_width = 230;
-
-    // pos_x = 100 + 250;
-    pos_y += 70;
-    control_width = 200;
-
-    erFileName = new EditRect(pos_x, pos_y, control_width, 22);
-    erFileName.setFontSize(13);
-    erFileName.setTextLeftMargin(2);
-    erFileName.setTextTopMargin(13);
-  }
-
-  //----------------------------------------
   //  SCREEN SHOT, SAVE CSV
   {
-    // pos_x = 15;
-    pos_y +=  40;
-    cp5.addButton("Screen shot").setPosition(pos_x, pos_y).setSize(200, 70)
+    pos_x = window_size_x - 230;
+    pos_y +=  150;
+    int button_height = 40;
+    cp5.addButton("Screen shot").setPosition(pos_x, pos_y).setSize(200, button_height)
                     .setLabel("Screen shot").setFont(font_mid);
 
-    pos_y += 80;
-    cp5.addButton(CSV_BTN_TAG).setPosition(pos_x, pos_y).setSize(200, 70)
+    pos_y += (button_height + 20);
+    cp5.addButton(CSV_BTN_TAG).setPosition(pos_x, pos_y).setSize(200, button_height)
                     .setLabel(CSV_BTN_FALSE).setFont(font_mid);
 
     csv_btn_state = false;
   }
+  
+  //----------------------------------------
+  //  FILE NAME
+  {
+    pos_x = window_size_x - 230;
+    pos_y += 80;
+
+    int control_width = 0;
+
+    control_width = 90;
+    cp5.addTextlabel("tag_FILENAME")
+                      .setText("SAVE FILE NAME (CSV/PNG) :")
+                      .setPosition(pos_x, pos_y)
+                      //.setColorValue(0xff0060ff)
+                      .setColorValue(0xff000088)
+                      //.setColorValue(0xffff60ff)
+                      .setFont(font_small)
+                      ;
+
+    pos_y += 20;
+    control_width = 200;
+
+    erFileName = new EditRect(pos_x + 0, pos_y, control_width, 19);
+    erFileName.setFontSize(13);
+    erFileName.setTextLeftMargin(2);
+    erFileName.setTextTopMargin(13);
+    erFileName.render();
+
+
+    pos_x += 6;
+    pos_y += 30;
+    control_width = 70;
+    cp5.addTextfield("NAME")
+        .setPosition(pos_x, pos_y).setSize(control_width, 25)
+        .setText("LGD_Line3")
+        .setFont(font_small)
+        .setColorBackground(0xEE000000)
+        .setColorForeground(0xff222222)
+        .setColorValue(0xFFEEFFEE)
+        .setColorLabel(0xEE0000BF)
+        ;
+    
+    pos_x += (control_width + 20);
+    //pos_y += 50;
+    cp5.addTextfield("MEMO")
+        .setPosition(pos_x, pos_y).setSize(control_width, 25)
+        .setText("Pos2")
+        .setFont(font_small)
+        .setColorBackground(0xEE000000)
+        .setColorForeground(0xff222222)
+        .setColorValue(0xFFEEFFEE)
+        .setColorLabel(0xEE0000BF)
+        ;
+  }
+
 }
 
 boolean csv_btn_state = false;
@@ -287,8 +308,9 @@ void update_UI() {
     text_field = "_" + cp5.get(Textfield.class, "MEMO").getText();
     strFileInfo += text_field;
 
+    fill(0xffdddddd); // HUE, SATURATE, BRIGHTNESS : black(0, 0, 0) . white(0, 0, 100), color (180~0, 100, 100) 
     erFileName.render();
-    erFileName.showString(strFileInfo + ".csv(or .png)");
+    erFileName.showString(strFileInfo + ".csv (OR .png)");
 
     pop();
 
