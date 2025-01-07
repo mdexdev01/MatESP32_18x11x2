@@ -1,7 +1,7 @@
 /*
  Author : Marveldex Inc. mdex.co.kr
  Contact : area@mdex.co.kr
- Customer : EZGEO
+ Customer : LGD
  Source Ver. : 2024-0608a
  Release : NOT YET
  
