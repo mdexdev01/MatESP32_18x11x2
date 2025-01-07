@@ -1,0 +1,43 @@
+Tools > Partition Scheme 아래에 'Custom partition CSV'라는 메뉴는 없는데요??
+ChatGPT의 말:
+ChatGPT
+Arduino IDE에서 Custom partition CSV 옵션이 보이지 않는 경우, 사용자 정의 파티션 테이블을 적용하려면 다음 단계를 통해 설정해야 합니다:
+
+1. 사용자 정의 파티션 테이블 파일 생성
+프로젝트 폴더(스케치가 저장된 위치)에 partitions.csv 파일을 생성합니다.
+아래 내용을 파일에 저장합니다:
+kotlin
+코드 복사
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x5000
+otadata,  data, ota,     0xe000,   0x2000
+app0,     app,  ota_0,   0x10000,  0x100000
+app1,     app,  ota_1,   0x110000, 0x100000
+spiffs,   data, spiffs,  0x210000, 0xDF0000
+2. 보드 설정 파일에 사용자 파티션 테이블 경로 추가
+Arduino 설정 폴더로 이동:
+
+Windows: %AppData%\Arduino15\packages\esp32\hardware\esp32\<버전>
+macOS: ~/Library/Arduino15/packages/esp32/hardware/esp32/<버전>
+Linux: ~/.arduino15/packages/esp32/hardware/esp32/<버전>
+boards.txt 파일을 엽니다.
+
+사용 중인 보드(예: esp32s3) 항목 아래에 다음 줄을 추가:
+
+vbnet
+코드 복사
+your_board.build.partitions=custom
+사용자 정의 파티션 테이블을 적용하려면 custom_partitions.csv 파일을 Arduino 설정 폴더의 tools 경로에 저장해야 합니다:
+
+javascript
+코드 복사
+<Arduino 설정 폴더>/tools/partitions/custom_partitions.csv
+3. Arduino IDE에서 적용
+Arduino IDE를 다시 실행.
+Tools > Partition Scheme 메뉴에 사용자 정의 항목(custom)이 표시되는지 확인합니다.
+사용자 정의 파티션을 선택한 후 스케치를 업로드합니다.
+문제 해결
+위 단계를 따라도 문제가 해결되지 않는다면:
+
+ESP32 보드 매니저를 최신 버전으로 업데이트하세요.
+다른 설정 문제가 있으면 추가로 알려주시면 지원해 드리겠습니다.

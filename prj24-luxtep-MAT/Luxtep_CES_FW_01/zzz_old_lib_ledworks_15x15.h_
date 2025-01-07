@@ -1,0 +1,426 @@
+// A basic everyday NeoPixel strip test program.
+
+// NEOPIXEL BEST PRACTICES for most reliable operation:
+// - Add 1000 uF CAPACITOR between NeoPixel strip's + and - connections.
+// - MINIMIZE WIRING LENGTH between microcontroller board and first pixel.
+// - NeoPixel strip's DATA-IN should pass through a 300-500 OHM RESISTOR.
+// - AVOID connecting NeoPixels on a LIVE CIRCUIT. If you must, ALWAYS
+//   connect GROUND (-) first, then +, then data.
+// - When using a 3.3V microcontroller with a 5V-powered NeoPixel strip,
+//   a LOGIC-LEVEL CONVERTER on the data line is STRONGLY RECOMMENDED.
+// (Skipping these may work OK on your workbench but can fail in the field)
+
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+#include <avr/power.h>  // Required for 16 MHz Adafruit Trinket
+#endif
+
+#include "libLED_Object.h"
+#include "libScanWorks.h"
+// #include "libCopWorks.h"
+
+// Which pin on the Arduino is connected to the NeoPixels?
+// On a Trinket or Gemma we suggest changing this to 1:
+
+// How many NeoPixels are attached to the Arduino?
+// #define LED_COUNT 256
+#define LED_COUNT 252
+
+// Declare our NeoPixel strip object:
+// Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip[4];
+
+// Argument 1 = Number of pixels in NeoPixel strip
+// Argument 2 = Arduino pin number (most are valid)
+// Argument 3 = Pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+//   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
+
+// setup() function -- runs once at startup --------------------------------
+
+char log_buf[64];
+
+byte force_buf[15 * 15];
+byte inpol_buf[30 * 30];  // interpolation buffer
+
+void setup_ledworks() {
+}
+
+void readForce();
+void fake_force(int origin_x, int origin_y);
+void interpolateForce();
+void drawPixels();
+
+// loop() function -- runs repeatedly as long as board is on ---------------
+
+void intro_led() {
+    // Fill along the length of the strip in various colors...
+    // colorWipe(strip[i].Color(255,   0,   0), 50); // Red
+    // colorWipe(strip[i].Color(  0, 255,   0), 50); // Green
+    // colorWipe(strip[i].Color(  0,   0, 255), 50); // Blue
+
+    // // Do a theater marquee effect in various colors...
+    // theaterChase(strip[i].Color(127, 127, 127), 50); // White, half brightness
+    // theaterChase(strip[i].Color(127,   0,   0), 50); // Red, half brightness
+    // theaterChase(strip[i].Color(  0,   0, 127), 50); // Blue, half brightness
+
+    // rainbow(10);             // Flowing rainbow cycle along the whole strip
+
+    theaterChaseRainbow(200);  // Rainbow-enhanced theaterChase variant
+}
+
+void loop_ledworks() {
+    // rainbow(10);
+
+    loop_adc();
+    reorderADC();  // change X, Y coord
+
+    mapADC2LED();  // 15 x 15 ADC to 30 x 30 LED
+
+    blurObjectOutline();  // blur outline
+
+    loop_fsrled();  // draw COP
+
+    loop_balanceWorks();
+
+    drawPixels();
+
+    adc_scan_done = false;
+    // delay(1);
+}
+
+/*
+  pcb real index
+  [ here is a mcu ]
+  870 840 810 780   ...   60  30  0
+  871 841 811 781   ...   61  31  1
+              ...
+  898 868 838 808   ...   88  58  28
+  899 869 839 809   ...   89  59  29
+
+  (0, 0) = 899
+  (2, 0) = 839
+  (29, 29) = 0
+*/
+
+bool setLedColor(int x, int y, byte r, byte g, byte b) {
+    if (((x < 0) || (15 * 2 < x)) || ((y < 0) || (15 * 2 < y))) {
+        return false;
+    }
+
+    int pcb_led_index = 900 - x * 30 - y - 1;
+    int group_index = 0;
+    int strip_index = 0;
+
+    {
+        if (pcb_led_index < 256) {  // 0
+            group_index = 0;
+            strip_index = pcb_led_index % 256;
+        } else if (pcb_led_index < 512) {  // 1
+            group_index = 1;
+            strip_index = pcb_led_index % 256;
+        } else if (pcb_led_index < 768) {  // 2
+            group_index = 2;
+            strip_index = pcb_led_index % 256;
+        } else {  // 3
+            group_index = 3;
+            strip_index = pcb_led_index % 256;
+        }
+    }
+
+    strip[group_index].setPixelColor(strip_index, strip[group_index].Color(r, g, b));
+    // strip[group_index].show();
+}
+
+uint32_t RGBCode(byte r, byte g, byte b) {
+    uint32_t rgb = 0;
+
+    rgb = r << 16 | g << 8 | b;
+
+    return rgb;
+}
+
+void convForce2RGB(int force_val, byte &r_val, byte &g_val, byte &b_val) {
+    // G(0, 255, 0) ==> Yellow(255, 255, 0) ==> Red(255, 0, 0)
+    //  force_val range : probably 0~180
+
+    int div_scale = 4;  // color range is divided 3 (G~Y, Y~O, O~R)
+
+    if (240 < force_val)
+        force_val = 240;
+
+    if (force_val < 1) {
+        r_val = 0;
+        g_val = 0;
+        b_val = 0;                // Zero
+    } else if (force_val < 80) {  // G to Y
+        r_val = force_val * 3;
+        g_val = 160;
+        b_val = 0;                 // C to G
+    } else if (force_val < 160) {  // Y to R
+        r_val = 255;
+        g_val = 255 - (force_val - 80) * 3;
+        b_val = 0;  // C to G
+    } else {        // O to R
+        r_val = 255;
+        g_val = 0;
+        b_val = 0;
+    }
+}
+
+void convForce2RGB_CGYOR(int force_val, byte &r_val, byte &g_val, byte &b_val) {
+    // Cyan (X) (128, 255, 255)==> G(128, 255, 0) ==> Yellow(255, 255, 0) ==> Orange(255, 127, 0) ==> Red(255, 0, 0)
+    //  force_val range : probably 0~240
+
+    int div_scale = 4;  // color range is divided 4 (C~G, G~Y, Y~O, O~R)
+
+    if (240 < force_val)
+        force_val = 240;
+
+    if (force_val < 1) {
+        r_val = 0;
+        g_val = 0;
+        b_val = 0;  // Zero
+    } else if (force_val < 60) {
+        r_val = 0;
+        g_val = 240;
+        b_val = 240 - force_val * 4;  // C to G
+    } else if (force_val < 120) {
+        r_val = (force_val - 60) * 4;
+        g_val = 240;
+        b_val = 0;  // G to Y
+    } else if (force_val < 180) {
+        r_val = 240;
+        g_val = 240 - (force_val - 120) * 2;
+        b_val = 0;  // Y to O
+    } else {
+        r_val = 240;
+        g_val = 120 - (force_val - 180) * 2;
+        b_val = 0;  // O to R
+    }
+}
+
+int read_count = 0;
+void reorderADC() {
+    memset(force_buf, 0, 15 * 15);
+    memset(inpol_buf, 0, 30 * 30);
+
+    for (int y = 0; y < 15; y++) {
+        for (int x = 0; x < 15; x++) {
+            force_buf[y * 15 + x] = adc_value[14 - x][14 - y];
+        }
+    }
+
+    read_count++;
+}
+
+void readForce_fake() {
+    memset(force_buf, 0, 15 * 15);
+    memset(inpol_buf, 0, 30 * 30);
+
+    switch (read_count % 6) {
+        case 0:
+            fake_force(3, 2);
+            break;
+        case 1:
+            fake_force(11, 5);
+            break;
+        case 2:
+            fake_force(3, 7);
+            break;
+        case 3:
+            fake_force(10, 9);
+            break;
+        case 4:
+            fake_force(5, 11);
+            break;
+        case 5:
+            fake_force(12, 12);
+            break;
+    }
+
+    fake_force(4, 7);
+
+    read_count++;
+}
+
+void fake_force(int origin_x, int origin_y) {
+    if (((origin_x < 0) || (15 * 1 < origin_x)) || ((origin_y < 0) || (15 * 1 < origin_y))) {
+        return;
+    }
+
+    force_buf[15 * origin_y + origin_x] = 80;
+    force_buf[15 * origin_y + origin_x + 1] = 120;
+    force_buf[15 * origin_y + origin_x + 2] = 90;
+
+    force_buf[15 * (origin_y + 1) + origin_x + 1] = 190;
+    force_buf[15 * (origin_y + 1) + origin_x + 2] = 140;
+    force_buf[15 * (origin_y + 2) + origin_x + 1] = 40;
+}
+
+int blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delta_y) {
+    //  check size limit
+    if (((x + delta_x) < 0) || ((y + delta_y) < 0))
+        return -1;
+    if ((width <= (x + delta_x)) || (height <= (y + delta_y)))
+        return -1;
+
+    int cell_index = 0;
+
+    cell_index = 15 * (y + delta_y) + (x + delta_x);
+
+    if (0 < force_buf[cell_index])
+        return -1;
+
+    int led_index_sw = 0;  // south west
+    int led_index_se = 0;  // south east
+    int led_index_nw = 0;  // north west
+    int led_index_ne = 0;  // north east
+
+    led_index_sw = 30 * (y + delta_y) * 2 + (x + delta_x) * 2 + 0;
+    led_index_se = 30 * (y + delta_y) * 2 + (x + delta_x) * 2 + 1;
+    led_index_nw = 30 * ((y + delta_y) * 2 + 1) + (x + delta_x) * 2;
+    led_index_ne = 30 * ((y + delta_y) * 2 + 1) + (x + delta_x) * 2 + 1;
+
+    int center_index = 0;
+    center_index = 15 * y + x;
+
+    int blur_value = force_buf[center_index] >> 0;
+
+    //   1,  0
+    if (delta_x == -1) {
+        switch (delta_y) {
+            case -1:
+                // inpol_buf[led_index_ne] += blur_value;
+                break;
+            case 0:
+                inpol_buf[led_index_ne] += blur_value;
+                inpol_buf[led_index_se] += blur_value;
+                break;
+            case 1:
+                // inpol_buf[led_index_se] += blur_value;
+                break;
+        }
+    } else if (delta_x == 0) {
+        switch (delta_y) {
+            case -1:
+                inpol_buf[led_index_nw] += blur_value;
+                inpol_buf[led_index_ne] += blur_value;
+                break;
+            // case  0:
+            //   break;
+            case 1:
+                inpol_buf[led_index_sw] += blur_value;
+                inpol_buf[led_index_se] += blur_value;
+                break;
+        }
+    } else if (delta_x == 1) {
+        switch (delta_y) {
+            case -1:
+                // inpol_buf[led_index_nw] += blur_value;
+                break;
+            case 0:
+                inpol_buf[led_index_nw] += blur_value;
+                inpol_buf[led_index_sw] += blur_value;
+                break;
+            case 1:
+                // inpol_buf[led_index_sw] += blur_value;
+                break;
+        }
+    }
+
+    // Serial.printf("(x=%d, y=%d) to (x+delta=%d, y+delta=%d), adc=%d, blur=%d \r\n",
+    //               x, y, (x+delta_x), (y+delta_y), force_buf[center_index], blur_value);
+
+    return blur_value;
+}
+
+void blurObjectOutline() {
+    int cell_index = 0;
+
+    for (int y = 0; y < SIZE_Y + 1; y++) {
+        for (int x = 0; x < SIZE_X; x++) {
+            cell_index = SIZE_Y * y + x;
+
+            if (force_buf[cell_index] == 0)
+                continue;
+
+            //  influencing to the neighbor cells of value 0.
+            // blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delta_y);
+            blurLEDwithADCPos(SIZE_X, x, -1, (SIZE_Y + 1), y, -1);
+            blurLEDwithADCPos(SIZE_X, x, -1, (SIZE_Y + 1), y, 0);
+            blurLEDwithADCPos(SIZE_X, x, -1, (SIZE_Y + 1), y, 1);
+
+            blurLEDwithADCPos(SIZE_X, x, 0, (SIZE_Y + 1), y, -1);
+            // blurLEDwithADCPos(SIZE_X, x,  0, (SIZE_Y + 1), y,  0);
+            blurLEDwithADCPos(SIZE_X, x, 0, (SIZE_Y + 1), y, 1);
+
+            blurLEDwithADCPos(SIZE_X, x, 1, (SIZE_Y + 1), y, -1);
+            blurLEDwithADCPos(SIZE_X, x, 1, (SIZE_Y + 1), y, 0);
+            blurLEDwithADCPos(SIZE_X, x, 1, (SIZE_Y + 1), y, 1);
+        }
+    }
+}
+
+void mapADC2LED() {
+    int cell_index = 0;
+    int led_index_sw = 0;  // south west
+    int led_index_se = 0;  // south east
+    int led_index_nw = 0;  // north west
+    int led_index_ne = 0;  // north east
+
+    for (int y = 0; y < 15; y++) {
+        for (int x = 0; x < 15; x++) {
+            cell_index = 15 * y + x;
+
+            if (force_buf[cell_index] == 0)
+                continue;
+            //  sw(x*2, y*2), se(x*2+1, y*2), nw(x*2, y*2+1), ne(x*2+1, y*2+1)
+            led_index_sw = 30 * y * 2 + x * 2 + 0;
+            led_index_se = 30 * y * 2 + x * 2 + 1;
+            led_index_nw = 30 * (y * 2 + 1) + x * 2;
+            led_index_ne = 30 * (y * 2 + 1) + x * 2 + 1;
+
+            inpol_buf[led_index_sw] = force_buf[cell_index] + 0;
+            inpol_buf[led_index_se] = force_buf[cell_index] + 0;
+            inpol_buf[led_index_nw] = force_buf[cell_index] + 0;
+            inpol_buf[led_index_ne] = force_buf[cell_index] + 0;
+        }
+    }
+}
+
+long draw_count = 0;
+void drawPixels() {
+    int wait_ms = 2;
+
+    int force = draw_count % 240;
+    byte r, g, b;
+
+    for (int y = 0; y < 30; y++) {
+        for (int x = 0; x < 30; x++) {
+            int led_index = y * 30 + x;
+
+            force = inpol_buf[led_index];
+
+            convForce2RGB(force, r, g, b);
+            setLedColor(x, y, r, g, b);  // C to Gled_index
+
+            // delay(wait_ms);        //  Pause for a moment
+        }
+    }
+
+    for (int g = 0; g < 4; g++) {
+        strip[g].show();
+    }
+    delay(10);  //  Pause for a moment
+
+    for (int g = 0; g < 4; g++) {
+        strip[g].clear();
+    }
+    delay(5);  //  Pause for a moment
+
+    draw_count++;
+}
