@@ -75,7 +75,7 @@ void configPacket(int num_col, int num_row) {
 int parse_count = 0;
 int board_count[] = new int [3];
 
-int parseData_BrandContents(byte[] read_data) {
+int parseData_Luxtep(byte[] read_data) {
   int parse_error = 0;
 
   if (false == (  (byteToInt(read_data[0]) == HEADER_SYNC) && (byteToInt(read_data[1]) == HEADER_SYNC) )) {
@@ -85,13 +85,15 @@ int parseData_BrandContents(byte[] read_data) {
   }
 
   int major_ver   = byteToInt(read_data[2]);
-  int minor_ver   = byteToInt(read_data[3]);
+  //int minor_ver   = byteToInt(read_data[3]);
+  int board_id    = byteToInt(read_data[3]);
+  
+  int group_id    = byteToInt(read_data[4]);
+  int msg_id      = byteToInt(read_data[5]);
 
-  int num_row     = byteToInt(read_data[4]);
-  int num_col     = byteToInt(read_data[5]);
+  int num_row     = byteToInt(read_data[6]);
+  int num_col     = byteToInt(read_data[7]);
 
-  int board_id    = byteToInt(read_data[6]);
-  int reserved_1  = byteToInt(read_data[7]);
 
   int packet_len = num_row * num_col;
 
@@ -105,13 +107,18 @@ int parseData_BrandContents(byte[] read_data) {
   case 2:
     board_count[2]++;
     break;
-  default :
-    return 0;
+  case 8:
+    board_count[0]++;
+    board_count[1]++;
+    break;
+  //default :
+  //  return 0;
   }
 
-  matView_A[board_id].fillPacketBytes(read_data, PACKET_HEADER_LEN);
+  //matView_A[board_id].fillPacketBytes(read_data, PACKET_HEADER_LEN);
+  matView_A[0].fillPacketBytes(read_data, PACKET_HEADER_LEN);
 
-  // println("[" + parse_count + "]board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", res1:" + reserved_1);
+   println("[" + parse_count + "]board = " + board_id + ", major:" + major_ver + ", len:" + packet_len + ", start:" + byteToInt(read_data[0]) + ", group_id:" + group_id);
 
   if( (board_count[0] % 100) == 0)
     println("COUNT : board[0]:" + board_count[0] + " board[1]:" + board_count[1] + "(" + (board_count[1]-board_count[0]) + ")" + " board[2]:" + board_count[2] + "(" + (board_count[2]-board_count[0])+ ")");
@@ -203,9 +210,9 @@ boolean taskSerial0xFE_01() {
         countNull++;
       }
 
-      if ((countNull % 200) == 199 ) {
-        drawTextLog("Serial is not connected");
-        println("Serial is not connected");
+      if ((countNull % 500) == 199 ) {
+        drawTextLog("Serial seems not connected");
+        //println("Serial seems not connected");
       }
 
       delay(1);
@@ -245,7 +252,8 @@ boolean taskSerial0xFE_01() {
     }
 
     // parseData_EZGEO(PacketData);
-    parseData_BrandContents(PacketData);
+    //parseData_BrandContents(PacketData);
+    parseData_Luxtep(PacketData);
 
     countNull = 0;
 
