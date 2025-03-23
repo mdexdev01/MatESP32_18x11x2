@@ -25,7 +25,9 @@ prj24-luxtep-MAT/Proc_Luxtep/windows-amd64/
 
 Luxtep-17x28-a/Proc_matrix_17x28/
 prj24-brandContents-Luxtep/
-prj24-luxtep-MAT/Luxtep_CES_FW_01/Luxtep_CES_FW_01_d03_b/
+prj24-luxtep-MAT/
+prj24-luxtep-MAT_V2/espidf_ex/
+prj24-luxtep-MAT_V2/Fw_Luxtep_02/_backup, bin/
 
 # file extentions
 *.o 
