@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <driver/adc.h>
 #include <driver/gpio.h>
+
+#include "libPacket/libPrintRaw.h"
 //   rs485 - rxd, txd, de
 
 //   dip switch - opt 0, 1 [GPIO]
@@ -25,10 +27,6 @@
 
 #define NUM_MUX_OUT MUX_74HC4051_OUT
 
-#define NUM_SUB_WIDTH 28
-#define NUM_SUB_HEIGHT 34
-#define NUM_SUB_SENSOR_CH (NUM_SUB_WIDTH * NUM_SUB_HEIGHT)
-
 //-------------------------------------------------------------
 //   MUX, POWER[28] - NX3L4051HR power  [S0 ~ S2, Z, EN0~EN3] : EXT0~EXT27,
 //  Mux for Ext power - NX3L4051HR
@@ -44,7 +42,7 @@ const int NUM_PWR_MUX = 4;
 #define pinExtEn2 46
 #define pinExtEn3 9
 int pinMuxPwrEn[NUM_PWR_MUX] = {pinExtEn0, pinExtEn1, pinExtEn2, pinExtEn3};
-int en_ext_mux_id = -1;
+int ext_mux_id_prev = -1;
 
 //-------------------------------------------------------------
 //   MUX, INPUT[34]  - NX3L4051HR input  [AN0~AN2, Z, EN4~EN8] : SEN0~SEN33,, SW-OPT0, 1,, SW-A0~A3
@@ -68,31 +66,39 @@ int en_sen_mux_id = -1;
 //   adc - aout [ADC]
 // #define pinVOut 1  //  ADC1_0
 // #define pinVRef 2  //  ADC1_1
-#define pinVOut ADC1_CHANNEL_0  // GPIO 1
-#define pinVRef ADC1_CHANNEL_1  // GPIO 2
+#define pinVOut ADC1_CHANNEL_0  // GPIO 1, ADC1_0, printed as 0
+#define pinVRef ADC1_CHANNEL_1  // GPIO 2, ADC1_1, printed as 1
 
 //  ADC Buffer
 #define NUM_PWR 28  // X
 #define NUM_SEN 34  // Y
 
-#define NUM_COL NUM_PWR  // X, 28
-#define NUM_ROW NUM_SEN  // Y, 34
+#define NUM_COL NUM_PWR  // X, 28, SIZE_X
+#define NUM_ROW NUM_SEN  // Y, 34, SIZE_Y
 
 #define SIZE_X NUM_COL
 #define SIZE_Y NUM_ROW
 
+//  ADC Buffer used by hardware
 int VOut_Value[NUM_PWR][NUM_SEN];
 int VRef_Value[NUM_PWR][NUM_SEN];
-int ForceData[NUM_PWR][NUM_SEN];
+int calcedVolt[NUM_PWR][NUM_SEN];
+int backupVolt[NUM_PWR][NUM_SEN];
 
-byte force_buf[SIZE_X * SIZE_Y];
-byte inpol_buf[SIZE_X * (SIZE_Y + 1)];  // interpolation buffer
+//  Force buffer used by hardware
+byte hwForceBuf_odd[SIZE_X * SIZE_Y];
+byte hwForceBuf_even[SIZE_X * SIZE_Y];
 
-byte force_buf_1[SIZE_X * SIZE_Y];
-byte inpol_buf_1[SIZE_X * (SIZE_Y + 1)];  // interpolation buffer
+//  Force buffer pointer used by software
+byte* forceBuffer_rd = hwForceBuf_odd;
+byte* forceBuffer_wr = hwForceBuf_even;
+byte* forceBuffer_wr_last = forceBuffer_rd;
+
+//  Force Buffer from board 1
+byte forceBuffer_bd1[SIZE_X * SIZE_Y];
 
 //  Dip Switch
-int dip_decimal = 0;  // 0: Main, 1: Sub
+int MY_BOARD_ID = 0;  // 0: Main, 1: Sub
 
 //  HW Pin # - Wakeup, ADC
 #define RESOLUTION_BITS (12)  // choose resolution (explained in depth below)
@@ -122,13 +128,22 @@ boolean dip_state[NUM_OF_DIP];
 ///////////////////////////////////////////////////////////////////////////
 //    SETUP
 ///////////////////////////////////////////////////////////////////////////
-void setup_HWPins_34x28() {
-    analogReadResolution(RESOLUTION_BITS);  // set the resolution of analogRead results
-                                            //  - maximum: 14 bits (maximum ADC resolution)
-                                            //  - default: 10 bits (standard Arduino setting)
-                                            //  - minimum:  1 bit
+void setup_MeasureBuffers() {
+    for (int i = 0; i < NUM_PWR; i++) {
+        memset(VOut_Value[i], 0, NUM_SEN);
+        memset(VRef_Value[i], 0, NUM_SEN);
 
-    // pinMode(LED_BUILTIN, OUTPUT);
+        memset(calcedVolt[i], 0, NUM_SEN);
+        memset(backupVolt[i], 0, NUM_SEN);
+    }
+
+    memset(hwForceBuf_odd, 0, SIZE_X * SIZE_Y);
+    memset(hwForceBuf_even, 0, SIZE_X * SIZE_Y);
+    memset(forceBuffer_bd1, 0, SIZE_X * SIZE_Y);
+}
+
+void setup_HWPins_34x28() {
+    pinMode(LED_BUILTIN, OUTPUT);
 
     // LED matrix
     pinMode(DI0, OUTPUT);
@@ -139,8 +154,12 @@ void setup_HWPins_34x28() {
     pinMode(pinVOut, INPUT);
     pinMode(pinVRef, INPUT);
 
-    adc1_config_channel_atten(pinVOut, ADC_ATTEN_DB_11);  // 감쇠 설정
-    adc1_config_channel_atten(pinVRef, ADC_ATTEN_DB_11);
+    //  - maximum: 14 bits (maximum ADC resolution)
+    //  - default: 10 bits (standard Arduino setting)
+    //  - minimum:  1 bit
+    analogReadResolution(RESOLUTION_BITS);  // set the resolution of analogRead results
+    // adc1_config_channel_atten(pinVOut, ADC_ATTEN_DB_11);  // 감쇄 설정 (0~3.9V), ADC_ATTEN_DB_6	0 ~ 2.2V, ADC_ATTEN_DB_2_5	0 ~ 1.5V
+    // adc1_config_channel_atten(pinVRef, ADC_ATTEN_DB_11);
 
     for (int i = 0; i < NUM_MUX_SIG; i++) {
         pinMode(pinMuxPwrSig012[i], OUTPUT);
@@ -186,17 +205,17 @@ int muxSig3PinsVal[NUM_MUX_OUT][NUM_MUX_SIG] = {
 //    MUX WORKING - EXT
 //-----------------------------------------------------
 void selectPwrMux(int ext_mux_id) {
-    if (en_ext_mux_id == ext_mux_id)
+    if (ext_mux_id_prev == ext_mux_id)
         return;
 
     // for (int i = 0; i < NUM_PWR_MUX; i++) {
     //     digitalWrite(pinMuxPwrEn[i], HIGH);
     // }
 
-    digitalWrite(pinMuxPwrEn[en_ext_mux_id], HIGH);
-    digitalWrite(pinMuxPwrEn[ext_mux_id], LOW);
+    digitalWrite(pinMuxPwrEn[ext_mux_id_prev], HIGH);  // HIGH disable
+    digitalWrite(pinMuxPwrEn[ext_mux_id], LOW);        // LOW enable
 
-    en_ext_mux_id = ext_mux_id;
+    ext_mux_id_prev = ext_mux_id;
 }
 
 void selectPwrOut(int ext_ch) {
@@ -274,47 +293,51 @@ int read1chInSenMux(int mux_ch) {
     return _vout_raw;
 }
 
-void read8chInSenMux(int sen_ch) {
-    for (int i = 0; i < NUM_MUX_OUT; i++) {
-        read1chInSenMux(i);
-        VOut_Value[sen_ch][i] = _vout_raw;
-        VRef_Value[sen_ch][i] = _vref_raw;
-    }
-}
-
-void readSen8ch_fast(int sen_ch) {
-    for (int i = 0; i < NUM_MUX_OUT; i++) {
-        read1chInSenMux(i);
-        VOut_Value[sen_ch][i] = _vout_raw;
-        VRef_Value[sen_ch][i] = _vref_raw;
-    }
-}
-
-void readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
+int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     digitalWrite(pinMuxSenSig012[pin_signal], muxSig3PinsVal[mux_ch][pin_signal]);
-    // if (muxSig3PinsVal[mux_ch][pin_signal] == 1)
-    //     GPIO.out_w1ts = (1 << pinMuxSenSig012[pin_signal]);  // PIN을 HIGH로 설정
-    // else
-    //     GPIO.out_w1tc = (1 << pinMuxSenSig012[pin_signal]);  // PIN을 LOW로 설정
 
     int row_index = mux_id * NUM_MUX_OUT + mux_ch;
 
-    // delayMicroseconds(200);adc1_get_raw
+    taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
 
-    // VOut_Value[col_index][row_index] = _vout_raw = analogRead(pinVOut);
-    // VRef_Value[col_index][row_index] = _vref_raw = analogRead(pinVRef);
-    VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut);
+    VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut);  // ==> make interrupt error in uart
     VRef_Value[col_index][row_index] = _vref_raw = adc1_get_raw(pinVRef);
 
+    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
+
     int calc_value = calcF(_vout_raw, _vref_raw);
-    // force_value = 0;
+    if (calc_value < 0)
+        calc_value = 0;
+
+    // if (0 < calc_value)
+    //     uart0_printf("[%8d]gara force =%d (X%d, Y%d) -------------------\n", millis(), calc_value, col_index, row_index);
+
+    //  연속 2회동안 0 이상인지 검사. 이전에 0이었다면 peak noise로 간주
+    bool is_noise = false;
+    if (0 < calc_value) {
+        if (0 < backupVolt[col_index][row_index]) {  // remove noise
+            uart0_printf("[%8d]gara 222 force =%d (X%d, Y%d) -------------------\n", millis(), calc_value, col_index, row_index);
+        } else {
+            is_noise = true;
+        }
+    }
+
     if (calc_value < NOISE_THRESHOLD)
-        ForceData[col_index][row_index] = 0;
+        calcedVolt[col_index][row_index] = calc_value = 0;
     else
-        ForceData[col_index][row_index] = calc_value;
+        calcedVolt[col_index][row_index] = calc_value - NOISE_THRESHOLD;
+
+    // 만일 peak noise 라면 0으로 강제 지정
+    if (is_noise)
+        calcedVolt[col_index][row_index] = 0;
+
+    //  측정값 백업
+    backupVolt[col_index][row_index] = calc_value;
+
+    return calc_value;
 }
 
-void readSen1Mux(int col_index, int mux_id) {
+void readAndCalc_in1Mux(int col_index, int mux_id) {
     int mux_ch = 0;
     for (int i = 0; i < NUM_MUX_SIG; i++) {
         digitalWrite(pinMuxSenSig012[i], muxSig3PinsVal[mux_ch][i]);
@@ -341,16 +364,20 @@ void readSen1Mux(int col_index, int mux_id) {
 
 void readSen1Col(int col_index) {
     int num_mux = NUM_ROW / NUM_MUX_OUT;  // 34 / 8 = 4
+
+    //  row : 0~31
     for (int mux_id = 0; mux_id < num_mux; mux_id++) {
-        // Serial.printf("muxid : %d (/%d) \n", mux_id, num_mux);
+        // uart0_printf("muxid : %d (/%d) \n", mux_id, num_mux);
         selectSenMux(mux_id);
-        readSen1Mux(col_index, mux_id);
+        readAndCalc_in1Mux(col_index, mux_id);
     }
 
     selectSenMux(4);
     for (int i = 0; i < NUM_MUX_SIG; i++) {
         digitalWrite(pinMuxSenSig012[i], muxSig3PinsVal[0][i]);  // out : 0, sigpin : i
     }
+
+    //  row : 32, 33
     readAndCalc(col_index, 4, 0, 0);  // mux id : 4, out : 0, sigpin : 0
     readAndCalc(col_index, 4, 1, 0);  // mux id : 4, out : 1, sigpin : 0
 }
@@ -362,13 +389,74 @@ void readSenCh(int sen_ch) {
     read1chInSenMux(mux_out);
 }
 
+//	이거 PWR를 고정하고 센서를 움직이는데, 반대로 센서를 고정하고 PWR를 바꾸는 방식으로 수정해야 함.
+int adc_scan_done = false;
+int adc_scan_count_main = 0;
+void adcScan_DoubleBuf() {
+    //  for ext mux id loop
+    for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
+        // for (int col_pwr = NUM_PWR - 1; 0 <= col_pwr; col_pwr--) {// 역순
+        selectPwrCh(col_pwr);
+
+        readSen1Col(col_pwr);  // temp
+
+        taskYIELD();
+    }  // end - for ext mux id loop
+
+    {
+        byte* forceBuffer_prev = forceBuffer_rd;
+
+        // uart0_printf("[%8d] copy force buf * ptr:%d \n", millis(), forceBuffer_wr);
+        int cell_index = 0;
+        for (int y = 0; y < SIZE_Y; y++) {
+            for (int x = 0; x < SIZE_X; x++) {
+                cell_index = SIZE_X * y + x;
+
+                forceBuffer_wr[cell_index] = calcedVolt[x][y];
+            }
+        }
+
+        forceBuffer_wr_last = forceBuffer_wr;
+
+        //  forceBuffer_rd for led and send data and ...
+        //  forceBuffer_wr for next adc scan
+        if (adc_scan_count_main % 2 == 0) {
+            forceBuffer_rd = hwForceBuf_even;
+            forceBuffer_wr = hwForceBuf_odd;
+        } else {
+            forceBuffer_rd = hwForceBuf_odd;
+            forceBuffer_wr = hwForceBuf_even;
+        }
+
+        // uart0_printf("[%8d] copy force buf ends * ptr:%d \n", millis(), forceBuffer_wr);
+    }
+    taskYIELD();
+
+    adc_scan_done = true;
+    adc_scan_count_main++;
+}
+
+void measure1ch(int ext_ch, int sen_ch) {
+    selectPwrCh(ext_ch);
+    read1chInSenMux(sen_ch);
+
+    uart0_printf("[E%d,S%d]O:%4d, R:%4d \n", ext_ch, sen_ch, _vout_raw, _vref_raw);
+}
+
 //-----------------------------------------------------
 //    MUX WORKING - DIP SW
 //-----------------------------------------------------
 int binDip4 = 0;
-void read_dipsw() {
+int binDip2 = 0;
+
+#define VREF_DIP_HIGH 260  // Typically 297, 284, 287
+void read_dipsw(bool isLastRowConfigured) {
     // choose mux_sen #4, ch34~39
     int dip_val[NUM_OF_DIP];
+
+    if (false == isLastRowConfigured) {
+        selectPwrCh(NUM_PWR - 1);
+    }
 
     //  _vref_raw : low is under 150 (typically 135), high is over 500 (typically 522)
 
@@ -386,17 +474,22 @@ void read_dipsw() {
     dip_val[5] = _vref_raw;
 
     for (int i = 0; i < NUM_OF_DIP; i++) {
-        if (300 < dip_val[i])
+        if (VREF_DIP_HIGH < dip_val[i])
             dip_state[i] = HIGH;
         else
             dip_state[i] = LOW;
     }
-    // Serial.printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_val[0], dip_val[1], dip_val[2], dip_val[3], dip_val[4], dip_val[5]);
-    // Serial.printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_state[0], dip_state[1], dip_state[2], dip_state[3], dip_state[4], dip_state[5]);
+    // uart0_printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_val[0], dip_val[1], dip_val[2], dip_val[3], dip_val[4], dip_val[5]);
+    // uart0_printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_state[0], dip_state[1], dip_state[2], dip_state[3], dip_state[4], dip_state[5]);
 
     binDip4 = 0;
     for (int i = 0; i < 4; i++) {
         binDip4 |= (dip_state[i] << i);
+    }
+
+    binDip2 = 0;
+    for (int i = 0; i < 2; i++) {
+        binDip2 |= (dip_state[4 + i] << i);
     }
 }
 

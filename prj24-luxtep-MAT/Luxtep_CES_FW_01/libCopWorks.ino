@@ -28,9 +28,9 @@ void find_COP(int range_width, int range_height) {
         for (int x = 0; x < range_width; x++) {
             int led_index = y * range_width + x;
 
-            sum_force += inpol_buf[led_index];
-            sum_force_pos_x += inpol_buf[led_index] * x;
-            sum_force_pos_y += inpol_buf[led_index] * y;
+            sum_force += ledBlurBuf[led_index];            // rd
+            sum_force_pos_x += ledBlurBuf[led_index] * x;  // rd
+            sum_force_pos_y += ledBlurBuf[led_index] * y;  // rd
         }
     }
 
@@ -43,23 +43,23 @@ void find_COP(int range_width, int range_height) {
 
         COP_fifo_in(cop_led_x, cop_led_y, 240);
 
-        // inpol_buf[30 * cop_led_y + cop_led_x] = 240;
+        // ledBlurBuf[30 * cop_led_y + cop_led_x] = 240;
     } else {
         COP_fifo_in(-1, -1, 0);
     }
 
-    // Serial.printf("COP = (%2.2f, %2.2f) \r\n", cop_x, cop_y);
+    // uart0_printf("COP = (%2.2f, %2.2f) \r\n", cop_x, cop_y);
     // convForce2RGB(force, r, g, b);
     // setLedColor(cop_led_x, 28, 220, 0, 0);  // C to Gled_index
 }
 
 void COP_fifo_in(int x, int y, int strenth) {
     {
-        // Serial.printf("[%3d]", fifo_next_index);
+        // uart0_printf("[%3d]", fifo_next_index);
         for (int j = 0; j < cop_fifo_len; j++) {
-            // Serial.printf("%3d,", COP_RingBuf[j].z);
+            // uart0_printf("%3d,", COP_RingBuf[j].z);
         }
-        // Serial.printf("\r\n");
+        // uart0_printf("\r\n");
     }
 
     fifo_in_index = fifo_next_index;
@@ -74,7 +74,7 @@ void COP_fifo_in(int x, int y, int strenth) {
 void fill_COP100() {
     int fifo_offset = fifo_next_index;  // in fact, fifo_next_index is the offset of the next one. it means the oldest one.
 
-    // Serial.printf("fifo offset = %d \r\n", fifo_offset);
+    // uart0_printf("fifo offset = %d \r\n", fifo_offset);
 
     for (int i = 0; i < cop_fifo_len; i++) {
         int cop_led_x = COP_RingBuf[fifo_offset].x;
@@ -88,6 +88,6 @@ void fill_COP100() {
         if (level == 0)
             continue;
 
-        inpol_buf[30 * cop_led_y + cop_led_x] = i * int(240 / cop_fifo_len);
+        ledBlurBuf[30 * cop_led_y + cop_led_x] = i * int(240 / cop_fifo_len);  // rd
     }
 }

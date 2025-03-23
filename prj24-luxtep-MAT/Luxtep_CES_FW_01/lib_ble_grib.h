@@ -43,18 +43,18 @@ int32_t value = 0;
 class MyServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         bleConnected = true;
-        Serial.println("bleConnected = true");
+        uart0_println("bleConnected = true");
     };
 
     void onDisconnect(BLEServer* pServer) {
         bleConnected = false;
-        Serial.println("bleConnected = false");
+        uart0_println("bleConnected = false");
 
         // Restart advertising to be visible and connectable again
         BLEAdvertising* pAdvertising;
         pAdvertising = pServer->getAdvertising();
         pAdvertising->start();
-        Serial.println("iBeacon advertising restarted");
+        uart0_println("iBeacon advertising restarted");
     }
 };
 
@@ -67,21 +67,20 @@ class MyCallbacks : public BLECharacteristicCallbacks {
         std::string stdRxValue = std::string(rxValue.c_str());
 
         if (rxValue.length() > 0) {
-            Serial.println("*********");
-            Serial.print("Received Value: ");
+            uart0_printf("*********\n");
+            uart0_print("Received Value: ");
             for (int i = 0; i < rxValue.length(); i++) {
-                Serial.print(rxValue[i]);
+                uart0_print(rxValue[i]);
             }
-            Serial.println();
-            Serial.println("*********");
+            uart0_printf("\n*********\n");
         }
     }
 };
 
-#define BASKET_LEN (PACKET_LEN * 2)
+#define BASKET_LEN (PACKET_LEN_SEN_1Bd * 2)
 
 int blePacketSeq = 0;
-byte blePacketGrib[BASKET_LEN + 100];
+byte blePacketGrib[PACKET_LEN_SEN_1Bd + 100];
 
 void init_service() {
     BLEAdvertising* pAdvertising;
@@ -162,8 +161,8 @@ void init_beacon() {
 }
 
 void setup_advGrib() {
-    Serial.println();
-    Serial.println("Initializing...");
+    uart0_println();
+    uart0_println("Initializing...");
     Serial.flush();
 
     BLEDevice::init(DEVICE_NAME);
@@ -174,7 +173,7 @@ void setup_advGrib() {
     init_service();
     init_beacon();
 
-    Serial.println("iBeacon + service defined and advertising!");
+    uart0_println("iBeacon + service defined and advertising!");
 }
 
 #define TX_PACKET_SIZE (16 * 11 + 4)

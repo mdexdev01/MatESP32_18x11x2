@@ -1,65 +1,117 @@
 /*
   CUSTOMER : LUXTEP
   CHIPSET  : ESP32 S3 N16R8
-  CAUTION !!!! - BOARD LIBRARY VERSION : 2.0.17  (NOT 3.0)
+  CAUTION !!!! - BOARD LIBRARY VERSION : esp32 2.0.17  (NOT 3.0)
 
   Luxtep_CES_FW_01_d02_release.zip
 
   < TODO >
   2024-12-18
-    [O]ADC NOISE,
-    [O]ADC speed
-    [O]RX BUFFER OVERFLOW/CRASH,
-    [O]Crop LED
+    [O] ADC NOISE,
+    [O] ADC speed 3M
+    [O] RX BUFFER OVERFLOW/CRASH,
+    [O] Crop LED
+    [O] UART0, UART1 isr event handeler
+    [O] message handler, 25/01/25
+  2025-02-20
+    pump, adc, drawLED에 대해 시간 최적화시에 0~4열 노이즈 발생
+    permit 메시지 사용
+    1SET, 1BD 패킷 구조 변경
+
+
+    Double Buffering : <SUB> ADC <--> LED, TX1
+    Double Buffering : <MAIN> ADC <--> LED, TX0
+    Double Buffering : <MAIN> UART1-x-UART0
+
+    Task memory optimize by profiling
+    LED garbage while rx osd buffer.
+
     NAND, PSRAM working
-    OSD RGB full color buffer
-    message handler
     bmp display
+
+    WIFI-BLE AP config
+    WIFI Connectivity
+    OSD RGB full color buffer
+
     OTA
+    Library and API
 
 */
 #include <NeoPixelBus.h>
-// #include <Adafruit_NeoPixel.h>
-// #ifdef __AVR__
-// #include <avr/power.h>  // Required for 16 MHz Adafruit Trinket
-// #endif
 
 #include "commPacket.h"
 #include "configPins-mdll-24-6822.h"
-#include "libBuzzer.h"
+#include "driver/ledc.h"
 #include "libLED_Object.h"
-#include "libProtocol.h"
+#include "libPacket/libPrintRaw.h"
+#include "libPacket/libProtocol.h"
+#include "libPacket/packetBuffer.h"
 #include "lib_ble_ota.h"
+#include "lib_buzzer.h"
 #include "lib_gpio.h"
 #include "lib_ledworks_28x35.h"
 
 bool is_ManualMode = false;  // false : Full frame, true : just one point measurement.
 
 TaskHandle_t Task_Core0;
+TaskHandle_t hTask_UART0;
+TaskHandle_t hTask_UART1;
+
+SemaphoreHandle_t semaForceBuf_rd;  // 세마포어 핸들 생성
+
 #define CORE_0 0
 #define CORE_1 1
 
 void setup() {
-    // #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-    // clock_prescale_set(clock_div_1);
-    // #endif
-    // END of Trinket-specific code.
-    Serial.setTxBufferSize(SERIAL_SIZE_TX);
-    Serial.setRxBufferSize(SERIAL_SIZE_RX);
-    Serial.begin(BAUD_RATE0, SERIAL_8N1);
+    // UART0 설정
+    uart_config_t uart_config_0 = {
+        .baud_rate = BAUD_RATE0,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 122,
+    };
+    uart_param_config(UART_NUM_0, &uart_config_0);
+    uart_set_pin(UART_NUM_0, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_driver_install(UART_NUM_0, SERIAL_SIZE_RX * 2, SERIAL_SIZE_TX, 20, &UART0_EventQueue, 0);  // 20 = queue_size, 0 = intr_alloc_flags
 
-    Serial1.setRxBufferSize(SERIAL_SIZE_TX);
-    Serial1.setRxBufferSize(SERIAL_SIZE_RX);
-    Serial1.begin(BAUD_RATE1, SERIAL_8N1, 18, 17);  // 18 : RXD, 17 : TXD
+    //  UART 버퍼 초기화
+    uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));  // TX 버퍼 초기화
+    uart_flush_input(UART_NUM_0);                       // RX 버퍼 초기화
+    uart_flush(UART_NUM_0);
 
-    setup_Comm();
+    // RX1 pin pull up mode
+    gpio_set_pull_mode((gpio_num_t)RX_PIN, GPIO_PULLUP_ONLY);  // RX pin pull up mode
 
-    memset(packetBuf, 0, PACKET_LEN);
-    memset(packetBufOSD, 0, PACKET_HEAD_LEN + SUB_HEAD_LEN + OSD_BUFFER_SIZE);
-    osd_buf = packetBufOSD + PACKET_HEAD_LEN + SUB_HEAD_LEN;
+    // UART1 설정
+    uart_config_t uart_dma_config_1 = {
+        .baud_rate = BAUD_RATE1,  // 3Mbps 설정
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 64,
+        .source_clk = UART_SCLK_APB};
 
+    uart_param_config(UART_NUM_1, &uart_dma_config_1);
+    uart_set_pin(UART_NUM_1, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_driver_install(UART_NUM_1, SERIAL_SIZE_RX * 8, SERIAL_SIZE_TX, 20 * 10, &UART1_EventQueue, 0);  // 20 = queue_size, 0 = intr_alloc_flags
+
+    // RX1 이벤트 비활성화
+    disable_uart_rx_events(UART_NUM_1);
+
+    //  UART 버퍼 초기화
+    uart_wait_tx_done(UART_NUM_1, pdMS_TO_TICKS(100));  // TX 버퍼 초기화
+    uart_flush_input(UART_NUM_1);                       // RX 버퍼 초기화
+    uart_flush(UART_NUM_1);
+    /*
+        // 첫 번째 수신 데이터 무조건 버리기 (패킷 꼬임 방지)
+        uint8_t dummy_buf[1024];
+        uart_read_bytes(UART_NUM_1, dummy_buf, 1024, pdMS_TO_TICKS(50));
+    */
     //-------------------------------------------
-    Serial.printf("SETUP-HW PINS \n");
+    uart0_printf("SETUP-HW PINS \n");
 
     // GPIO 47 비활성화 - 예외 처리
     {
@@ -72,364 +124,331 @@ void setup() {
     }
 
     //  mux
+    uart0_printf("set up buffer... \n");
+    setup_MeasureBuffers();
+    setup_LEDBuffers();
+
+    uart0_printf("gpio 34 x 28 \n");
     setup_HWPins_34x28();
+    uart0_printf("mux initialize... \n");
+    ext_mux_id_prev = NUM_PWR_MUX - 1;
     selectPwrMux(0);  // 0 : temporary. one and only mux
+    en_sen_mux_id = NUM_SEN_MUX - 1;
     selectSenMux(0);  // 0 : temporary. one and only mux
 
     //  gpio, dip switch
+    uart0_printf("gpio else \n");
     setup_gpioWork();
-    read_dipsw();
-    dip_decimal = binDip4;
+    read_dipsw(false);
+    MY_BOARD_ID = binDip4;
 
+    //  adc, osd, packet buffer
+    setup_PacketBuffer(MY_BOARD_ID);
+
+    uart0_printf("PLAY SONG \n");
     //  --------------------------------------------
     //  WELCOME
     //  Buzzer
-    if (dip_decimal == 0) {
+    if (MY_BOARD_ID == 0) {
         setup_song();
         play_song();
     }
 
+    uart0_printf("LED WELCOME \n");
     //  LED strip - WS2812C-2020-V1
+    /*
+        {
+    #define LEDC_TIMER LEDC_TIMER_0
+    #define LEDC_MODE LEDC_LOW_SPEED_MODE
+    #define LEDC_DUTY_RES LEDC_TIMER_10_BIT  // 10-bit 해상도 (0~1023)
+    #define LEDC_FREQUENCY 5000              // 5kHz PWM 주파수
+
+            // 사용할 GPIO 핀 및 LEDC 채널
+            const int led_pins[] = {8, 21, 14, 3};
+            const ledc_channel_t led_channels[] = {LEDC_CHANNEL_0, LEDC_CHANNEL_1, LEDC_CHANNEL_2, LEDC_CHANNEL_3};
+
+            {
+                // LEDC 타이머 설정
+                ledc_timer_config_t ledc_timer = {
+                    .speed_mode = LEDC_MODE,
+                    .duty_resolution = LEDC_DUTY_RES,
+                    .timer_num = LEDC_TIMER,
+                    .freq_hz = LEDC_FREQUENCY,
+                    .clk_cfg = LEDC_AUTO_CLK,
+                };
+                ledc_timer_config(&ledc_timer);
+
+                // 여러 개의 GPIO에 PWM 설정
+                for (int i = 0; i < 4; i++) {
+                    ledc_channel_config_t ledc_channel = {
+                        .gpio_num = led_pins[i],  // GPIO 설정
+                        .speed_mode = LEDC_MODE,
+                        .channel = led_channels[i],
+                        .intr_type = LEDC_INTR_DISABLE,  // ⚠ 순서 변경
+                        .timer_sel = LEDC_TIMER,
+                        .duty = 0,  // 초기 Duty Cycle = 0
+                        .hpoint = 0};
+                    ledc_channel_config(&ledc_channel);
+                }
+            }
+        }
+    */
     // 모든 스트립 초기화 - LCD I/f library
     for (int i = 0; i < NUM_strip; i++) {
         strip[i].Begin();
         strip[i].ClearTo(RgbColor(0, 0, 0));
-        strip[i].Show();
+        // strip[i].Show();
+        delay(2);
     }
 
-    /*
-        //  Adafruit library
-        strip[0].setPin(DI0);
-        strip[1].setPin(DI1);
-        strip[2].setPin(DI2);
-        strip[3].setPin(DI3);
-
-        byte bright_level = 20;
-        for (int i = 0; i < 4; i++) {  // not 3, but 4
-            strip[i].updateType(NEO_GRB + NEO_KHZ800);
-
-            if (i == 3)
-                strip[3].updateLength(LED_COUNT_3);
-            else
-                strip[i].updateLength(LED_COUNT);
-
-            strip[i].begin();                              // INITIALIZE NeoPixel strip object (REQUIRED)
-            strip[i].setBrightness(bright_level);          // Set BRIGHTNESS to about 1/5 (max = 255)
-                                                           // strip[i].show();                       // Turn OFF all pixels ASAP
-            strip[i].fill(strip[i].Color(255, 255, 255));  // 흰색으로 설정
-        }
-    */
-
-    // intro_led();
+    //  Set RS485 RX mode
+    setup_RS485();
 
     //------------------------------
     //  TASKS - 00
-    Serial.printf("TASK CREATES \n");
-    xTaskCreatePinnedToCore(
-        pumpSerial,    // 태스크 함수
-        "pumpSerial",  // 테스크 이름
-        (1024 * 14),   // 스택 크기(워드단위)
-        NULL,          // 태스크 파라미터
-        10,            // 태스크 우선순위
-        &Task_Core0,   // 태스크 핸들
-        CORE_0);       // 실행될 코어
-}
 
-#define rx_buf_len 32
-char read_data[rx_buf_len];
-int ext_ch = 0, sen_ch = 0;
-
-int serial_rx() {
-    // while(Serial.available()) {
-    //   char read_data = Serial.read();
-    //   Serial.printf("[RX] %s\n", read_data);
-    // }
-
-    while (Serial.available()) {
-        memset(read_data, 0, rx_buf_len);
-        int read_len = Serial.readBytes(read_data, rx_buf_len);
-        //  remove spaces
-        {
-            Serial.printf("RX:%s", read_data);
-            char *output = read_data;
-            int i = 0, j = 0;
-
-            while (read_data[i] != '\0') {
-                if (read_data[i] != ' ') {
-                    output[j] = read_data[i];
-                } else {
-                    j--;
-                }
-
-                i++;
-                j++;
-            }
-            read_data[j] = '\0';
-            // Serial.printf("RX:%s", read_data);
-        }
-
-        sscanf(read_data, "%d,%d", &ext_ch, &sen_ch);
-        Serial.printf("ext_ch=%d, sen_ch=%d\n", ext_ch, sen_ch);
+    semaForceBuf_rd = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
+    if (semaForceBuf_rd == NULL) {
+        Serial.println("Error: Unable to create semaphore!");
+        while (1);
     }
 
-    return 0;
-}
+    uart0_printf("TASK CREATES \n");
 
-void intro_led() {
-    // Fill along the length of the strip in various colors...
-    // colorWipe(strip[i].Color(255,   0,   0), 50); // Red
-    // colorWipe(strip[i].Color(  0, 255,   0), 50); // Green
-    // colorWipe(strip[i].Color(  0,   0, 255), 50); // Blue
+    if (pdPASS != xTaskCreatePinnedToCore(
+                      pumpSerial,    // 태스크 함수
+                      "pumpSerial",  // 테스크 이름
+                      (1024 * 14),   // 스택 크기(워드단위)
+                      NULL,          // 태스크 파라미터
+                      10 + 0,        // 태스크 우선순위
+                      &Task_Core0,   // 태스크 핸들
+                      CORE_0)) {     // 실행될 코어
+        uart0_printf("ERROR - TASK CREATES pumpSerial \n");
+    }
 
-    // // Do a theater marquee effect in various colors...
-    // theaterChase(strip[i].Color(127, 127, 127), 50); // White, half brightness
-    // theaterChase(strip[i].Color(127,   0,   0), 50); // Red, half brightness
-    // theaterChase(strip[i].Color(  0,   0, 127), 50); // Blue, half brightness
+    // LOOP 태스크 생성
+    if (pdPASS != xTaskCreatePinnedToCore(
+                      loopADCRead,    // 태스크 함수
+                      "loopADCRead",  // 태스크 이름
+                      1024 * 4 * 10,  // 스택 크기
+                      NULL,           // 태스크 파라미터
+                      10,             // 태스크 우선순위
+                      NULL,           // 태스크 핸들
+                      CORE_1)) {      // 실행될 코어
+        uart0_printf("ERROR - TASK CREATES loopADCRead \n");
+    }
 
-    // rainbow(10);  // Flowing rainbow cycle along the whole strip
+    // LOOP 태스크 생성
+    if (pdPASS != xTaskCreatePinnedToCore(
+                      loopDrawLED,    // 태스크 함수
+                      "loopDrawLED",  // 태스크 이름
+                      1024 * 4,       // 스택 크기
+                      NULL,           // 태스크 파라미터
+                      10,             // 태스크 우선순위
+                      NULL,           // 태스크 핸들
+                      CORE_1)) {      // 실행될 코어
+        uart0_printf("ERROR - TASK CREATES loopDrawLED \n");
+    }
 
-    theaterChaseRainbow(100);  // Rainbow-enhanced theaterChase variant
-}
+    // UART0 이벤트 처리 태스크 생성
+    if (pdPASS != xTaskCreatePinnedToCore(
+                      uart0_event_task,
+                      "uart0_event_task",
+                      1024 * 8,
+                      NULL,
+                      10 + 19,
+                      &hTask_UART0,
+                      CORE_0)) {
+        uart0_printf("ERROR - TASK CREATES uart0_event_task \n");
+    }
 
-long loop_count = 0;
-int adc_scan_done = false;
+    // UART1 이벤트 처리 태스크 생성
+    if (pdPASS != xTaskCreatePinnedToCore(
+                      uart1_event_task,
+                      "uart1_event_task",
+                      1024 * 8,
+                      NULL,
+                      10 + 20,  // priority high
+                      &hTask_UART1,
+                      CORE_0)) {
+        uart0_printf("ERROR - TASK CREATES uart1_event_task \n");
+    }
 
-void draw_ledObjects() {
-    blurObjectOutline();  // blur outline
-    clearPixels();
-    // loop_fsrled(SIZE_X, SIZE_Y);  // draw COP
-    // loop_balanceWorks(SIZE_X, SIZE_Y);
-
-    drawIndicator();
-    drawPixels();
+    // vTaskDelay(2);
+    //  taskYIELD();
 }
 
 void loop() {
-    // Serial.printf("[%08d] adc go \n", millis());
-    if (is_ManualMode == false)
-        adcScanMainPage();
-    // Serial.printf("[%08d] adc end \n", millis());
-
-    reorderADC2LED();  // change X, Y coord
-
-    read_dipsw();
-    dip_decimal = binDip4;
-    // Serial.printf("\nboard id = %d\n", dip_decimal);
-
-    loop_gpioWork();  // check buttons
-    //  check ota
-    // bool is_ota = checkOTAProc();
-
-    if (dip_decimal == 1110) {
-        MAIN_RX0_TX1();
-        delayMicroseconds(10);
-        MAIN_RX0_TX1();
-        delayMicroseconds(10);
-    }
-
-    // Serial.printf("[%08d] draw go \n", millis());
-    draw_ledObjects();
-    // Serial.printf("[%08d] draw end \n", millis());
-    vTaskDelay(8);
-    vTaskDelay(26);
-
-    if (dip_decimal == 1110) {
-        MAIN_RX0_TX1();
-        delayMicroseconds(10);
-        MAIN_RX0_TX1();
-        delayMicroseconds(10);
-    }
-
-    // buildPacket_Luxtep(packetBuf, ForceData, NUM_LUXTEP_WIDTH, NUM_LUXTEP_HEIGHT);
-    // sendPacket0(packetBuf, PACKET_LEN);
-    // printArray_34x28();
-
-    taskYIELD();
-    loop_count++;
+    vTaskDelay(1);
+    return;
 }
-int deliver_count_mine = 0;
-int tx_timer_count_last = 0;
 
-void pumpSerial(void *pParam) {
-    Serial.printf("PUMP- ENTER\n");
-
+//---------------------------------------------
+//  ADC SCAN TASK
+//---------------------------------------------
+long loop_count = 0;
+void loopADCRead(void *pvParameters) {
     while (true) {
-        int ret_val = 0;
-        //  Deilvery : Main job
-        if (dip_decimal == 0) {  // Main board
-            MAIN_TX1();
-            for (int i = 0; i < 3; i++) {
-                while (true) {
-                    ret_val = MAIN_RX1();  // temp----------
-                    delayMicroseconds(10);
-
-                    if (ret_val <= 0) {
-                        break;
-                    }
-                }
-            }
-            MAIN_TX1();
-            // if (send_tx1 == true) {
-            //     MAIN_TX1();
-            // }
-        } else if ((1 <= dip_decimal) && (dip_decimal <= 8)) {
-            for (int i = 0; i < 4; i++) {
-                ret_val = SUB_RX1(i);
-                delayMicroseconds(10);
-            }
-        }
-
-        if (dip_decimal == 0) {
-            MAIN_TX1();
-            for (int i = 0; i < 4; i++) {
-                MAIN_RX0_TX1();
-                delayMicroseconds(10);
-            }
-            MAIN_TX1();
-        }
-
-        // Serial.printf("[%8dms] adc_done=%d, timer_done=%d, grant1=%d, grant2=%d \n",
-        //               millis(), adc_scan_done, timer_flag, tx_grant_board1, tx_grant_board2);
-        taskYIELD();
-
-        if (adc_scan_done == false) {
-            delayMicroseconds(10);
-            continue;
-        }
-
-        //  DRAW LED
-        // draw_ledObjects();
-
-        boolean timer_flag = true;  // temp----------
-
-        // delay(10);
-        tx_grant_board1 = true;
-
-        if (timer_flag == true) {
-            //  Build and Send
-            // buildPacket(packetBuf, adc_value, MUX_LIST_LEN, NUM_USED_OUT);
-
-            // Serial.printf("TX timer loop count = %d (dip=%d) \n", deliver_count_mine, dip_decimal);
-
-            switch (dip_decimal) {
-                case 0:
-                    buildPacket_Luxtep(packetBuf, ForceData, NUM_LUXTEP_WIDTH, NUM_LUXTEP_HEIGHT);
-                    sendPacket0(packetBuf, PACKET_LEN);
-                    adc_scan_done = false;
-                    timer_flag = false;
-                    break;
-                case 1:
-                    if ((tx_grant_board1 == true) || (0 < consumeTimerToken())) {
-                        buildPacket_Luxtep_Sub(packetBuf, ForceData, SIZE_X, NUM_LUXTEP_HEIGHT);
-                        sendPacket1(packetBuf, SUB_PACKET_LEN);
-                        tx_grant_board1 = false;
-                        tx_timer_count_last = deliver_count_mine;
-                        adc_scan_done = false;
-                        timer_flag = false;
-                    }
-                    break;
-                case 2:
-                    if (tx_grant_board2 == true) {
-                        buildPacket_Luxtep(packetBuf, ForceData, NUM_LUXTEP_WIDTH, NUM_LUXTEP_HEIGHT);
-                        sendPacket1(packetBuf, PACKET_LEN);
-                        tx_grant_board2 = false;
-                        tx_timer_count_last = deliver_count_mine;
-                        adc_scan_done = false;
-                        timer_flag = false;
-                    }
-                    break;
-                case 3:
-                    if (tx_grant_board3 == true) {
-                        buildPacket_Luxtep(packetBuf, ForceData, NUM_LUXTEP_WIDTH, NUM_LUXTEP_HEIGHT);
-                        sendPacket1(packetBuf, PACKET_LEN);
-                        tx_grant_board3 = false;
-                        tx_timer_count_last = deliver_count_mine;
-                        adc_scan_done = false;
-                        timer_flag = false;
-                    }
-                    break;
-            }
-
-            if (dip_decimal != 0) {
-                if (3 < (deliver_count_mine - tx_timer_count_last)) {
-                    // Serial.printf("KEY hunger %d, ", (deliver_count_mine - tx_timer_count_last));
-                    tx_grant_board1 = tx_grant_board2 = tx_grant_board3 = true;
-                }
-            }
-        }
-
-        deliver_count_mine++;
         vTaskDelay(1);
-    }  // while
+
+        //-   DISABLE THIS TASK
+        // adc_scan_done = false;
+
+        // if (adc_scan_done == true) {
+        //     taskYIELD();
+        //     // vTaskDelay(1);
+        //     continue;
+        // }
+
+        //-   SCAN
+        {
+            int cur_ms = millis();
+            // uart0_printf("[%8d] adc start \n", millis());
+            adcScan_DoubleBuf();  //  IT CONSUMES 48ms at least. And 66ms, with taskYIELD() in the function.
+            // uart0_printf("[%8d] adc ends, dur = %d ms, ptr:%d \n", millis(), millis() - cur_ms, forceBuffer_wr_last);
+            taskYIELD();  // 여기에 이게 있으면 context switch 마비가 오는 것 같음.
+
+            reorderADC2LED();  // fill forceBuffer_rd[SIZE_X * SIZE_Y] and ledSrcBuf[NUM_LED_IN_1_BOARD] from calcedVolt[NUM_PWR][NUM_SEN]
+            taskYIELD();       // 여기에 이게 있으면 context switch 마비가 오는 것 같음.
+
+            adc_scan_done = true;
+            xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
+        }
+        // draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+
+        //-  CHECK BUTTONS
+        loop_gpioWork();  // check buttons
+        if (loop_count % 20 == 0) {
+            read_dipsw(true);
+            MY_BOARD_ID = binDip4;
+        }
+        taskYIELD();  // 여기에 이게 있으면 context switch 마비가 오는 것 같음.
+
+        //-  CHECK IF SEND PERMIT PACKET
+        // considerToPermit(60);
+
+        loop_count++;
+        // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
+
+        // uart0_printf("Task loopADCRead stack size: %d\n", uxTaskGetStackHighWaterMark(NULL));
+    }
+
+    return;
 }
 
-//	이거 PWR를 고정하고 센서를 움직이는데, 반대로 센서를 고정하고 PWR를 바꾸는 방식으로 수정해야 함.
-int adc_scan_count_main = 0;
-void adcScanMainPage() {
-    //  for ext mux id loop
-    for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-        selectPwrCh(col_pwr);
+void considerToPermit(int permit_interval) {
+    if (MY_BOARD_ID != 0)
+        return;
 
-        readSen1Col(col_pwr);  // temp
+    // uart0_printf("[%8d] check permit %d ms (last=%d) \n", millis(), millis() - tick_permit_last, tick_permit_last);
+    if (permit_interval < (millis() - tick_permit_last)) {
+        // if (isSubOSD_Filled == true)
+        //     continue;
 
-    }  // end - for ext mux id loop
+        uart0_println("[%8d]------------ 155 ---- by timeout--------------------------\n", millis());
 
-    adc_scan_done = true;
+        int reserved = reser_1;
+        // reser_1 = 155;
+        reser_1 = (reser_1 + 1) % 100;
+        buildPacket_Permit(packetBuf_DeviceIO, M_BOARD_1);  // M_BOARD_1 : destination board id
+        sendPacket1(packetBuf_DeviceIO, HEAD_LEN + TAIL_LEN);
+        tick_permit_last = millis();
+
+    } else {
+        uart0_printf("[%8d] permit skip by %d ms \n", millis(), millis() - tick_permit_last);
+    }
 }
 
-void adcScanMainPage_Slow() {
-    //  for ext mux id loop
-    for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-        selectPwrCh(col_pwr);
+//---------------------------------------------
+//  Draw LED Task
+//---------------------------------------------
+int loop_led_count = 0;
+void loopDrawLED(void *pvParameters) {
+    while (true) {
+        //      DISABLE THIS TASK
+        vTaskDelay(1);
+        // continue;
 
-        //  for sen mux id loop
-        for (int row_sen = 0; row_sen < NUM_SEN; row_sen++) {
-            readSenCh(row_sen);
-            VOut_Value[col_pwr][row_sen] = _vout_raw;
-            VRef_Value[col_pwr][row_sen] = _vref_raw;
-            ForceData[col_pwr][row_sen] = calcF(_vout_raw, _vref_raw);
+        if (xSemaphoreTake(semaForceBuf_rd, portMAX_DELAY) == pdTRUE) {
+            // if (adc_scan_done == false) {
+            //     // taskYIELD();
+            //     vTaskDelay(1);
+            //     continue;
+            // }
+            //  DRAW LED ==> make this block to task on core 1. (Core1 : draw_ledObjects and adcScanMainPage)
+            {
+                int cur_ms = millis();
+                // uart0_printf("[%8d] led task draw start [ad]=%d, [4g]=%d, ptr = %d \n", cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
+                draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+                // uart0_printf("[%8d] led task draw end dur=%d ms, [ad]=%d, [4g]=%d, ptr = %d \n", millis(), millis() - cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
+            }
 
-        }  //  end - for sen mux id loop
-    }  // end - for ext mux id loop
+            loop_led_count++;
+        }
+    }
 
-    adc_scan_done = true;
+    return;
 }
 
-void measure1ch(int ext_ch, int sen_ch) {
-    selectPwrCh(ext_ch);
-    read1chInSenMux(sen_ch);
-    // read8chInSenMux(ext_ch);
+bool is_ignore_this_longclick = false;
+bool is_command_thistime = false;
+bool is_ota_loop_on = false;
 
-    Serial.printf("[E%d,S%d]O:%4d, R:%4d \n", ext_ch, sen_ch, _vout_raw, _vref_raw);
+bool checkOTAProc() {
+    if (TactButtons[0]->isClickedVeryLong == true) {
+        if (is_ignore_this_longclick == false) {
+            if (is_ota_loop_on == false) {
+                setup_ota();
+                is_ota_loop_on = true;
+                is_ignore_this_longclick = true;
+                uart0_printf("ota on \n");
+            } else {  // else : if (is_ota_loop_on == true)
+                //  stop ota
+                is_ota_loop_on = false;
+                is_ignore_this_longclick = true;
+                uart0_printf("ota off \n");
+            }
+        }
+
+    } else {
+        is_ignore_this_longclick = false;
+    }
+
+    if (is_ota_loop_on == true) {
+        uart0_printf("ota is working \n");
+        loop_ota();
+    }
+
+    return is_ota_loop_on;
 }
 
 void printArray_34x28() {
-    Serial.printf("\n[%d]---------34 x 28---------------\n", loop_count);
+    uart0_printf("\n[%d]---------34 x 28---------------\n", loop_count);
     for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
         for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-            Serial.printf(" %3d ", ForceData[col_pwr][row_sen]);
+            uart0_printf(" %3d ", calcedVolt[col_pwr][row_sen]);
         }
-        Serial.printf("\n");
+        uart0_printf("\n");
     }
 
     for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
         for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
             int led_index = row_sen * NUM_PWR + col_pwr;
-            Serial.printf("[%3d]", inpol_buf[led_index]);
+            uart0_printf("[%3d]", ledBlurBuf[led_index]);  // rd
         }
-        Serial.printf("\n");
+        uart0_printf("\n");
     }
 
     // for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
     //     for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
     // int r_value = calcR(VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
-    // Serial.printf("[%2d,%2d] %4d", col_pwr, row_sen, r_value);
+    // uart0_printf("[%2d,%2d] %4d", col_pwr, row_sen, r_value);
 
     // int f_value = calcF(VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
-    // Serial.printf("[%2d,%2d] %4d", col_pwr, row_sen, f_value);
+    // uart0_printf("[%2d,%2d] %4d", col_pwr, row_sen, f_value);
 
-    // Serial.printf("[%d, %d] %4d /%4d", col_pwr, row_sen, VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
+    // uart0_printf("[%d, %d] %4d /%4d", col_pwr, row_sen, VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
     // }
-    // Serial.printf("\n");
+    // uart0_printf("\n");
     // }
 }

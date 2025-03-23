@@ -137,8 +137,8 @@ void loop_gpioWork() {
         pTact->needsUpdate = false;
         pTact->timeClicked_MS = millis();
 
-        Serial.printf("{%08d}Tact[%s] (T/F): %d, %d times \n",
-                      pTact->timeClicked_MS, pTact->nickName, pTact->isClicked, pTact->numberKeyPressed);
+        uart0_printf("{%8d}Tact[%s] (T/F): %d, %d times \n",
+                     pTact->timeClicked_MS, pTact->nickName, pTact->isClicked, pTact->numberKeyPressed);
         if (pTact->isClicked == false) {
             pTact->isClickedLong = false;
             pTact->isClickedVeryLong = false;
@@ -152,7 +152,7 @@ void loop_gpioWork_old() {
         button0.isClicked = 1 - digitalRead(SW_0);  // click : 0(LOW), unclick : 1(HIGH)
         button0.timeClicked_MS = millis();
 
-        Serial.printf("button[0] %d\n", button0.isClicked);
+        uart0_printf("button[0] %d\n", button0.isClicked);
         button0.needsUpdate = false;
         if (button0.isClicked == false) {
             button0.isClickedVeryLong = false;
@@ -165,7 +165,7 @@ void loop_gpioWork_old() {
         button1.isClicked = 1 - digitalRead(SW_1);  // click : 0(LOW), unclick : 1(HIGH)
         button1.timeClicked_MS = millis();
 
-        Serial.printf("button[1] %d\n", button1.isClicked);
+        uart0_printf("button[1] %d\n", button1.isClicked);
         button1.needsUpdate = false;
         if (button1.isClicked == false) {
             button1.isClickedVeryLong = false;
@@ -178,12 +178,12 @@ void loop_gpioWork_old() {
         button2.isClicked = 1 - digitalRead(SW_2);  // click : 0(LOW), unclick : 1(HIGH)
         button2.timeClicked_MS = millis();
 
-        Serial.printf("button [2] (%d) needsUpdate %u times\n", button2.isClicked, button2.numberKeyPressed);
+        uart0_printf("button [2] (%d) needsUpdate %u times\n", button2.isClicked, button2.numberKeyPressed);
         button2.needsUpdate = false;
         if (button2.isClicked) {
-            Serial.printf("button 2 active\n");
+            uart0_printf("button 2 active\n");
         } else {
-            Serial.printf("button 2 inactive\n");
+            uart0_printf("button 2 inactive\n");
         }
     }
 
@@ -199,15 +199,15 @@ void checkTimeLen(Button* theButton) {
         if ((3000 < time_len) && (theButton->isClickedVeryLong == false)) {
             theButton->isClickedVeryLong = true;
             setNeopixelColor(pin_LED_WS2812C, 50, 250, 250);
-            Serial.printf("[%s] clicked - VERY LONG (%d ms) \n", theButton->nickName, time_len);
+            uart0_printf("[%s] clicked - VERY LONG (%d ms) \n", theButton->nickName, time_len);
             delay(200);
 
-            Serial.printf("RESTART \n");
+            uart0_printf("RESTART \n");
             // ESP.restart();
         } else if ((1000 < time_len) && (theButton->isClickedLong == false)) {
             theButton->isClickedLong = true;
             setNeopixelColor(pin_LED_WS2812C, 0, 250, 0);
-            Serial.printf("[%s] clicked - LONG (%d ms) \n", theButton->nickName, time_len);
+            uart0_printf("[%s] clicked - LONG (%d ms) \n", theButton->nickName, time_len);
         }
     }
 }

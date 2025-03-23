@@ -26,7 +26,6 @@
 */
 
 //	https://github.com/fbiego/ESP32_BLE_OTA_Arduino
-
 #include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -36,8 +35,9 @@
 #include "FFat.h"
 #include "FS.h"
 #include "SPIFFS.h"
+#include "libPacket/packetBuffer.h"
 
-extern int dip_decimal;  // 0: Main, 1: Sub
+extern int MY_BOARD_ID;  // 0: Main, 1: Sub
 
 #define BUILTINLED 2
 #define FORMAT_SPIFFS_IF_FAILED true
@@ -76,7 +76,7 @@ static int MODE = NORMAL_MODE;
 unsigned long rParts, tParts;
 
 static void rebootEspWithReason(String reason) {
-    Serial.println(reason);
+    uart0_println(reason);
     delay(1000);
     ESP.restart();
 }
@@ -97,7 +97,7 @@ class MyCallbacks : public BLECharacteristicCallbacks {
     //      Serial.print(" on characteristic ");
     //      Serial.print(pCharacteristic->getUUID().toString().c_str());
     //      Serial.print(" with code ");
-    //      Serial.println(code);
+    //      uart0_println(code);
     //    }
 
     void onNotify(BLECharacteristic *pCharacteristic) {
@@ -109,12 +109,12 @@ class MyCallbacks : public BLECharacteristicCallbacks {
             //        Serial.print("Notify callback for characteristic ");
             //        Serial.print(pCharacteristic->getUUID().toString().c_str());
             //        Serial.print(" of data length ");
-            //        Serial.println(len);
+            //        uart0_println(len);
             Serial.print("TX  ");
             for (int i = 0; i < len; i++) {
-                Serial.printf("%02X ", pData[i]);
+                uart0_printf("%02X ", pData[i]);
             }
-            Serial.println();
+            uart0_printf("\n");
         }
     }
 
@@ -127,12 +127,12 @@ class MyCallbacks : public BLECharacteristicCallbacks {
             //        Serial.print("Write callback for characteristic ");
             //        Serial.print(pCharacteristic->getUUID().toString().c_str());
             //        Serial.print(" of data length ");
-            //        Serial.println(len);
+            //        uart0_println(len);
             //        Serial.print("RX  ");
             //        for (int i = 0; i < len; i++) {         // leave this commented
-            //          Serial.printf("%02X ", pData[i]);
+            //          uart0_printf("%02X ", pData[i]);
             //        }
-            //        Serial.println();
+            //        uart0_println();
 
             if (pData[0] == 0xFB) {
                 int pos = pData[1];
@@ -165,10 +165,7 @@ class MyCallbacks : public BLECharacteristicCallbacks {
                 rParts = 0;
                 tParts = (pData[1] * 256 * 256 * 256) + (pData[2] * 256 * 256) + (pData[3] * 256) + pData[4];
 
-                Serial.print("Available space: ");
-                Serial.println(FLASH.totalBytes() - FLASH.usedBytes());
-                Serial.print("File Size: ");
-                Serial.println(tParts);
+                uart0_printf("Available space: %d, File Size: %d", FLASH.totalBytes() - FLASH.usedBytes(), tParts);
 
             } else if (pData[0] == 0xFF) {
                 parts = (pData[1] * 256) + pData[2];
@@ -184,12 +181,12 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 };
 
 static void writeBinary(fs::FS &fs, const char *path, uint8_t *dat, int len) {
-    // Serial.printf("Write binary file %s\r\n", path);
+    // uart0_printf("Write binary file %s\r\n", path);
 
     File file = fs.open(path, FILE_APPEND);
 
     if (!file) {
-        Serial.println("- failed to open file for writing");
+        uart0_printf("- failed to open file for writing \n");
         return;
     }
     file.write(dat, len);
@@ -210,28 +207,31 @@ void performUpdate(Stream &updateSource, size_t updateSize) {
     if (Update.begin(updateSize)) {
         size_t written = Update.writeStream(updateSource);
         if (written == updateSize) {
-            Serial.println("Written : " + String(written) + " successfully");
+            uart0_printf("Written : %d successfully\n", written);
         } else {
-            Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Retry?");
+            uart0_printf("Written only : %d/%d . Retry?\n", written, updateSize);
+            // uart0_println("Written only : " + String(written) + "/" + String(updateSize) + ". Retry?");
         }
         result += "Written : " + String(written) + "/" + String(updateSize) + " [" + String((written / updateSize) * 100) + "%] \n";
         if (Update.end()) {
-            Serial.println("OTA done!");
+            uart0_printf("OTA done!\n");
             result += "OTA Done: ";
             if (Update.isFinished()) {
-                Serial.println("Update successfully completed. Rebooting...");
+                uart0_printf("Update successfully completed. Rebooting...\n");
                 result += "Success!\n";
             } else {
-                Serial.println("Update not finished? Something went wrong!");
+                uart0_printf("Update not finished? Something went wrong!\n");
                 result += "Failed!\n";
             }
 
         } else {
-            Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+            uart0_printf("Error Occurred. Error #: %s \n", String(Update.getError()));
+            // uart0_println("Error Occurred. Error #: " + String(Update.getError()));
             result += "Error #: " + String(Update.getError());
         }
     } else {
-        Serial.println("Not enough space to begin OTA");
+        uart0_printf("Not enough space to begin OTA\n");
+        // uart0_println("Not enough space to begin OTA");
         result += "Not enough space for OTA";
     }
     if (deviceConnected) {
@@ -244,7 +244,7 @@ void updateFromFS(fs::FS &fs) {
     File updateBin = fs.open("/update.bin");
     if (updateBin) {
         if (updateBin.isDirectory()) {
-            Serial.println("Error, update.bin is not a file");
+            uart0_printf("Error, update.bin is not a file\n");
             updateBin.close();
             return;
         }
@@ -252,27 +252,27 @@ void updateFromFS(fs::FS &fs) {
         size_t updateSize = updateBin.size();
 
         if (updateSize > 0) {
-            Serial.println("Trying to start update");
+            uart0_println("Trying to start update");
             performUpdate(updateBin, updateSize);
         } else {
-            Serial.println("Error, file is empty");
+            uart0_println("Error, file is empty");
         }
 
         updateBin.close();
 
         // when finished remove the binary from spiffs to indicate end of the process
-        Serial.println("Removing update file");
+        uart0_println("Removing update file");
         fs.remove("/update.bin");
 
         rebootEspWithReason("Rebooting to complete OTA update");
     } else {
-        Serial.println("Could not load update.bin from spiffs root");
+        uart0_println("Could not load update.bin from spiffs root");
     }
 }
 
 void initBLE() {
     char ble_device_name[32];
-    sprintf(ble_device_name, "LUXTEP OTA - board[%d] Ver.0.1.1\0", dip_decimal);
+    sprintf(ble_device_name, "LUXTEP OTA - board[%d] Ver.0.1.1\0", MY_BOARD_ID);
     BLEDevice::init(ble_device_name);
 
     BLEServer *pServer = BLEDevice::createServer();
@@ -294,24 +294,24 @@ void initBLE() {
     pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
-    Serial.println("Characteristic defined! Now you can read it in your phone!");
+    uart0_println("Characteristic defined! Now you can read it in your phone!");
 }
 
 void setup_ota() {
     // Serial.begin(115200);
-    Serial.println("Starting BLE OTA sketch");
+    uart0_println("Starting BLE OTA sketch");
     // pinMode(BUILTINLED, OUTPUT);
 
 #ifdef USE_SPIFFS
-    Serial.println("SPIFFS begins");
+    uart0_println("SPIFFS begins");
     if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-        Serial.println("SPIFFS Mount Failed");
+        uart0_println("SPIFFS Mount Failed");
         return;
     }
 #else
-    Serial.println("FFAT begins");
+    uart0_println("FFAT begins");
     if (!FFat.begin()) {
-        Serial.println("FFat Mount Failed");
+        uart0_println("FFat Mount Failed");
         if (FORMAT_FFAT_IF_FAILED) FFat.format();
         return;
     }
@@ -391,16 +391,17 @@ void loop_ota() {
             }
 
             if (rParts == tParts) {
-                Serial.println("Complete");
+                uart0_println("Complete");
                 delay(5000);
                 updateFromFS(FLASH);
             } else {
                 writeFile = true;
-                Serial.println("Incomplete");
-                Serial.print("Expected: ");
-                Serial.print(tParts);
-                Serial.print("Received: ");
-                Serial.println(rParts);
+                uart0_println("Incomplete");
+                uart0_printf("Expected: %d, Received: ", tParts, rParts);
+                // Serial.print("Expected: ");
+                // Serial.print(tParts);
+                // Serial.print("Received: ");
+                // uart0_println(rParts);
                 delay(2000);
             }
             break;

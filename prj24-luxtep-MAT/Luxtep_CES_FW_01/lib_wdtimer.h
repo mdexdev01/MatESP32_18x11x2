@@ -14,17 +14,17 @@ void ARDUINO_ISR_ATTR onTimer() {
 }
 
 int getTimerToken() {
-  return (timer_count - timer_count_used);
+    return (timer_count - timer_count_used);
 }
 
 int clearTimerToken() {
-  timer_count_used = timer_count;
+    timer_count_used = timer_count;
 }
 
 int consumeTimerToken() {
-  int tokens = timer_count - timer_count_used;
-  timer_count_used = timer_count;
-  return tokens;
+    int tokens = timer_count - timer_count_used;
+    timer_count_used = timer_count;
+    return tokens;
 }
 
 void setup_wdTimer() {
@@ -42,7 +42,7 @@ void loop_wdTimer() {
     }
     // loopTime = millis() - loopTime;
     // Serial.print("loop time is = ");
-    // Serial.println(loopTime);  // should be under 3000
+    // uart0_println(loopTime);  // should be under 3000
 }
 
 void changeTimerDurMS(int milliSecond) {
