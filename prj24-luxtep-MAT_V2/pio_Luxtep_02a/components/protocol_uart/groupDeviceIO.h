@@ -32,7 +32,7 @@ int parsePacket_Permit(byte *rx_packet_header, byte *rx_packet_body, int my_boar
     // uart0_printf("SUB RX, permit id = %d \n", rx_packet_body[IDX_PERMIT_ID]);
 
     if (rx_packet_header[IDX_PERMIT_ID] == my_board_id) {
-        vTaskDelay(1);
+        // vTaskDelay(1);
         key_granted = true;
     }
 

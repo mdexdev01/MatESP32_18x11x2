@@ -38,6 +38,13 @@
     Library and API
 
 */
+
+// platformio.exe run
+/*
+platformio.exe run --target upload --upload-port COM17
+platformio.exe device monitor --port COM17
+*/
+
 #include <Arduino.h>
 
 // #include <NeoPixelBus.h>
@@ -69,6 +76,14 @@ void loopADCRead(void *pvParameters);
 void loopDrawLED(void *pvParameters);
 
 void setup() {
+    esp_log_level_set("*", ESP_LOG_INFO);  // 모든 태그
+    ESP_LOGE("TEST", "print ESP_LOGE, 1 - ERROR");
+    ESP_LOGW("TEST", "print ESP_LOGW, 2 - WARN");
+    ESP_LOGI("TEST", "print ESP_LOGI, 3 - INFO");
+    ESP_LOGD("TEST", "print ESP_LOGD, 4 - DEBUG");
+    ESP_LOGV("TEST", "print ESP_LOGV, 5 - VERBOSE");
+    init_permit_mutex();
+
     // UART0 설정
     uart_config_t uart_config_0 = {
         .baud_rate = BAUD_RATE0,
@@ -294,17 +309,8 @@ long loop_count = 0;
 void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);
-        adc_scan_done = true;
-        continue;
-
-        //      CHECK if UART1 is currently used.
-        if (isBoard0_UART1_using == true) {
-            if (millis() - tick_permit_last < 1000) {
-                vTaskDelay(1);
-                continue;
-            }
-            isBoard0_UART1_using = false;
-        }
+        // adc_scan_done = true;
+        // continue;
 
         //-   SCAN
         int cur_ms = millis();
@@ -324,7 +330,7 @@ void loopADCRead(void *pvParameters) {
         {
             loop_gpioWork();  // check buttons
             if (loop_count % 20 == 0) {
-                read_dipsw(true);
+                read_dipsw(true); // check board id
                 MY_BOARD_ID = binDip4;
             }
         }

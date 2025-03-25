@@ -362,20 +362,20 @@ void readAndCalc_in1Mux(int col_index, int mux_id) {
     // {0, 0, 0},  // channel 0
     readAndCalc(col_index, mux_id, 0, 0);
     // {1, 0, 0},  // channel 1
-    readAndCalc(col_index, mux_id, 1, 0);
+    readAndCalc(col_index, mux_id, 1, 0); // only pin 0 changed among 0, 1, 2
     // {1, 1, 0},  // channel 3   It means S0=1, S1=1, S2=0
-    readAndCalc(col_index, mux_id, 3, 1);
+    readAndCalc(col_index, mux_id, 3, 1); // only pin 1 changed among 0, 1, 2
     // {0, 1, 0},  // channel 2
-    readAndCalc(col_index, mux_id, 2, 0);
+    readAndCalc(col_index, mux_id, 2, 0); // only pin 0 changed among 0, 1, 2
 
     // {0, 1, 1},  // channel 6
-    readAndCalc(col_index, mux_id, 6, 2);
+    readAndCalc(col_index, mux_id, 6, 2); // only pin 2 changed among 0, 1, 2
     // {1, 1, 1},  // channel 7
-    readAndCalc(col_index, mux_id, 7, 0);
+    readAndCalc(col_index, mux_id, 7, 0); // only pin 0 changed among 0, 1, 2
     // {1, 0, 1},  // channel 5
-    readAndCalc(col_index, mux_id, 5, 1);
+    readAndCalc(col_index, mux_id, 5, 1); // only pin 1 changed among 0, 1, 2
     // {0, 0, 1},  // channel 4
-    readAndCalc(col_index, mux_id, 4, 0);
+    readAndCalc(col_index, mux_id, 4, 0); // only pin 0 changed among 0, 1, 2
 }
 
 void readSen1Col(int col_index) {
@@ -394,8 +394,8 @@ void readSen1Col(int col_index) {
     }
 
     //  row : 32, 33
-    readAndCalc(col_index, 4, 0, 0);  // mux id : 4, out : 0, sigpin : 0
-    readAndCalc(col_index, 4, 1, 0);  // mux id : 4, out : 1, sigpin : 0
+    readAndCalc(col_index, 4, 0, 0);  // mux id : 4, out : 0, sigpin : 0. 8*4+0 = 32nd
+    readAndCalc(col_index, 4, 1, 0);  // mux id : 4, out : 1, sigpin : 0. 8*4+1 = 33rd
 }
 
 void readSenCh(int sen_ch) {
