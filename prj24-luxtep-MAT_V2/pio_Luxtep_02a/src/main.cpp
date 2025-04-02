@@ -38,17 +38,11 @@
     Library and API
 
 */
-
-// platformio.exe run
-/*
-platformio.exe run --target upload --upload-port COM17
-platformio.exe device monitor --port COM17
-*/
-
 #include <Arduino.h>
 
 // #include <NeoPixelBus.h>
 
+#include <esp_log.h>
 #include "commPacket.h"
 #include "configPins-mdll-24-6822.h"
 #include "driver/ledc.h"
@@ -76,14 +70,6 @@ void loopADCRead(void *pvParameters);
 void loopDrawLED(void *pvParameters);
 
 void setup() {
-    esp_log_level_set("*", ESP_LOG_INFO);  // 모든 태그
-    ESP_LOGE("TEST", "print ESP_LOGE, 1 - ERROR");
-    ESP_LOGW("TEST", "print ESP_LOGW, 2 - WARN");
-    ESP_LOGI("TEST", "print ESP_LOGI, 3 - INFO");
-    ESP_LOGD("TEST", "print ESP_LOGD, 4 - DEBUG");
-    ESP_LOGV("TEST", "print ESP_LOGV, 5 - VERBOSE");
-    init_permit_mutex();
-
     // UART0 설정
     uart_config_t uart_config_0 = {
         .baud_rate = BAUD_RATE0,
@@ -112,7 +98,7 @@ void setup() {
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 122,
+        .rx_flow_ctrl_thresh = 96, // 122
         .source_clk = UART_SCLK_APB};
 
     uart_param_config(UART_NUM_1, &uart_config_1);
@@ -228,13 +214,31 @@ void setup() {
     setup_RS485();
 
     //------------------------------
-    //  TASKS - 00
+    //  SEMAPHORES
 
     semaForceBuf_rd = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
     if (semaForceBuf_rd == NULL) {
-        Serial.println("Error: Unable to create semaphore!");
+        Serial.println("Error: Unable to create semaphore!, semaForceBuf_rd");
         while (1);
     }
+
+    semaSendPermit = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
+    if (semaSendPermit == NULL) {
+        Serial.println("Error: Unable to create semaphore!, semaSendPermit");
+        while (1);
+    }
+    xSemaphoreGive(semaSendPermit);
+
+    semaTX1 = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)   
+    if (semaTX1 == NULL) {
+        Serial.println("Error: Unable to create semaphore!, semaTX1");
+        while (1);
+    }
+    xSemaphoreGive(semaTX1);
+
+
+    //------------------------------
+    //  TASKS - 00
 
     uart0_printf("TASK CREATES \n");
     if (pdPASS != xTaskCreatePinnedToCore(
@@ -293,12 +297,10 @@ void setup() {
         uart0_printf("ERROR - TASK CREATES uart1_event_task \n");
     }
 
-    // vTaskDelay(2);
-    //  taskYIELD();
 }
 
 void loop() {
-    vTaskDelay(1);
+    vTaskDelay(1); // loop() task 초입 딜레이
     return;
 }
 
@@ -308,32 +310,57 @@ void loop() {
 long loop_count = 0;
 void loopADCRead(void *pvParameters) {
     while (true) {
-        vTaskDelay(1);
+        vTaskDelay(1);  // loopADCRead() task 초입 딜레이
         // adc_scan_done = true;
         // continue;
 
+        //      CHECK if UART1 is currently used.
+        if ((isBoard0_UART1_using == true) && (MY_BOARD_ID == 0)) {
+            if (millis() - tick_permit_last < 1000) {
+                vTaskDelay(1); // [loopADCRead] delay till isBoard0_UART1_using is set false.
+                continue;
+            }
+            uart0_printf("^");
+            isBoard0_UART1_using = false;
+        }
+
+        if(adc_scan_done == true) {
+            continue;
+        }
+
         //-   SCAN
         int cur_ms = millis();
-        uart0_printf("[%8d] adc start \n", millis());
+        uart0_printf("A");
+        // uart0_printf("[%8d] adc start \n", millis());
         {
             adcScan_DoubleBuf();  //  IT CONSUMES 48ms at least. And 66ms, with taskYIELD() in the function.
             taskYIELD();
 
             fillADC2LED();                    // fill ledSrcBuf from forceBuffer_rd
-            xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
-
-            adc_scan_done = true;
         }
-        uart0_printf("[%8d] adc ends, dur = %d ms, ptr:%d \n", millis(), millis() - cur_ms, forceBuffer_wr_last);
+        // uart0_printf("[%8d] adc ends, dur = %d ms, ptr:%d \n", millis(), millis() - cur_ms, forceBuffer_wr_last);
 
         //-  CHECK BUTTONS
         {
             loop_gpioWork();  // check buttons
             if (loop_count % 20 == 0) {
-                read_dipsw(true); // check board id
+                read_dipsw(true);
                 MY_BOARD_ID = binDip4;
             }
         }
+
+        //-  DRAW LED
+        {
+            draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+            // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
+        }
+
+        if(MY_BOARD_ID == 0) {
+            vTaskDelay(5);
+        }
+
+        uart0_printf("a");
+        adc_scan_done = true; //~~~ Trigger to send data to use UART0 and UART1.
 
         taskYIELD();
         considerToPermit(120);
@@ -353,7 +380,7 @@ int loop_led_count = 0;
 void loopDrawLED(void *pvParameters) {
     while (true) {
         //      DISABLE THIS TASK
-        vTaskDelay(1);
+        vTaskDelay(1);  // loopDrawLED() task 초입 딜레이이
         // continue;
 
         if (xSemaphoreTake(semaForceBuf_rd, portMAX_DELAY) == pdTRUE) {
@@ -361,7 +388,7 @@ void loopDrawLED(void *pvParameters) {
             {
                 int cur_ms = millis();
                 // uart0_printf("[%8d] led task draw start [ad]=%d, [4g]=%d, ptr = %d \n", cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
-                draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+                // draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
                 // uart0_printf("[%8d] led task draw end dur=%d ms, [ad]=%d, [4g]=%d, ptr = %d \n", millis(), millis() - cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
             }
 

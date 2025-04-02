@@ -14,28 +14,28 @@
 // #include <stdio.h>
 
 #include <esp_log.h>
+// #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "hal/uart_ll.h"
 #include "soc/uart_reg.h"
 #include "soc/uart_struct.h"
-// #include "esp_task_wdt.h"
-
-#include "freertos/portmacro.h"  // portENTER_CRITICAL, portEXIT_CRITICAL
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-
+// #include "lib_ble_ota.h"
 #include "configPins-mdll-24-6822.h"
 #include "lib_gpio.h"
 
 #include "libProtocol.h"
-#include "libPrintRaw.h"
-#include "packetBuffer.h"
 #include "groupDeviceIO.h"
 #include "groupOSDCommand.h"
 #include "groupSensorData.h"
-// #include "lib_ble_ota.h"
+#include "packetBuffer.h"
+
 // #include "lib_rle_util.h"
 // #include "lib_rle.h"
+
+static const char *TAG = "UART_TASK";
 
 //---------------------------------------------
 //  HARDWARE SPEC
@@ -57,7 +57,6 @@
 //---------------------------------------------
 //  Declarations
 //---------------------------------------------
-
 int BoardID_MAX = 7;
 extern int adc_scan_count_main;
 extern int adc_scan_done;
@@ -69,7 +68,7 @@ int processRX0(int event_size);
 int processRX1(byte *rx1_packet, int rx1_packet_size);
 int processRX1_SubDebug(int rx1_packet_size);
 
-bool isDuringPermitAndRx = false;  // UART1 사용중에 ADC 측정하면 송수신 노이즈 발생. (ADC 1회 측정이 30us 인데, 이때 UART1 인터럽트 에러남)
+bool isBoard0_UART1_using = false;  // UART1 사용중에 ADC 측정하면 송수신 노이즈 발생. (ADC 1회 측정이 30us 인데, 이때 UART1 인터럽트 에러남)
 int indexPermit = 0;
 
 bool isSubOSD_Filled = false;
@@ -141,28 +140,27 @@ void setup_RS485() {
     digitalWrite(pin485U1DE, LOW);  // LOW : RX, HIGH : TX
 }
 
-#include "esp_timer.h"
 
 int64_t wait_tx_done_async(int uart_num, int max_wait_duration_ms) {
     int64_t lap_enter = esp_timer_get_time();  // 마이크로초 단위 시간 측정
 
-    while (true) {
-        esp_err_t result = uart_wait_tx_done(uart_num, 0);  // 즉시 반환 모드 0 or portMAX_DELAY
+    // while (true) {
+        // esp_err_t result = uart_wait_tx_done(uart_num, 0);  // 즉시 반환 모드 0 or portMAX_DELAY
         // esp_err_t result = uart_wait_tx_done(uart_num, portMAX_DELAY);  // 즉시 반환 모드 0 or portMAX_DELAY
+        esp_err_t result = uart_wait_tx_done(uart_num, pdMS_TO_TICKS(max_wait_duration_ms)); // 타임아웃 설정 가능
 
         int elapsed_time = esp_timer_get_time() - lap_enter;
 
         if (result == ESP_OK)
             return elapsed_time;  // ==> 주로 여기에서 반환됨. 3500 ~ 4800us . 반면에 수신은 2800us 정도.
 
-        // 강제 리턴 조건. 타임아웃 체크 (μs → ms 변환)
-        if (max_wait_duration_ms * 1000 < elapsed_time) {
-            uart0_printf("[%8lldms] TX Timeout\n", esp_timer_get_time() / 1000);
+        // in case (result != ESP_OK)
+        // if (max_wait_duration_ms * 1000 < elapsed_time) {
+            uart0_printf("[%8d] TX Timeout (%8lld us)\n", millis(), elapsed_time);
             return elapsed_time;
-        }
+        // }
 
-        vTaskDelay(1);  // 1ms 대기. 1ms 이상 쉼.
-    }
+    // }
 
     return max_wait_duration_ms * 1000 + 1;
 }
@@ -189,45 +187,54 @@ void sendPacket0(byte *packet_buffer, int packet_len) {
 
 void setDE(bool state) {
     if (state) {
-        // disable_uart_rx_events(UART_NUM_1);  // RX 이벤트 비활성화
+        disable_uart_rx_events(UART_NUM_1);  // RX 이벤트 비활성화
 
-        delayMicroseconds(10 + 00);
+        // vTaskDelay(4);  // TX 모드 전환 이전 안정화 지연
+
+        delayMicroseconds(10 + 10);
         digitalWrite(pin485U1DE, HIGH);  // LOW : RX, HIGH : TX
-        delayMicroseconds(650 + 00);     // 안정화 지연
+        // delayMicroseconds(650 + 50 + 800);     // 안정화 지연
+        delayMicroseconds(650 + 00);     // 안정화 지연. tx and 650. 150 and rx.
     } else {
-        delayMicroseconds(150 + 00);
+        // delayMicroseconds(250 + -50 + 800);
+        delayMicroseconds(150); // 안정화 지연. tx and 650. 150 and rx.
         digitalWrite(pin485U1DE, LOW);  // LOW : RX, HIGH : TX
 
-        delayMicroseconds(13 + 00);
+        // delayMicroseconds(10 + -7);
 
         uart_flush_input(UART_NUM_1);
         delayMicroseconds(10);  // 플러시 후 안정화 딜레이 추가
 
-        // enable_uart_rx_events(UART_NUM_1);  // RX 이벤트 다시 활성화
+        enable_uart_rx_events(UART_NUM_1);  // RX 이벤트 다시 활성화
     }
 }
 
+SemaphoreHandle_t semaTX1;  // 세마포어 핸들 생성
+
 //  send data via 485 BUS (Half duplex)
 bool sendPacket1(byte *packet_buffer, int packet_len) {
-    // uart0_printf("[%8d] TX1 go \n", millis());
+    // uart0_printf("[%11lldus] TX1 go \n", esp_timer_get_time());
+    if (xSemaphoreTake(semaTX1, portMAX_DELAY) == pdTRUE) {
+        int tx_len = 0;
 
-    int tx_len = 0;
+        setDE(true);  // 송신 모드 전환
+    
+        int64_t cur_snap = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
+    
+        tx_len = uart_write_bytes(UART_NUM_1, packet_buffer, packet_len);
+        int64_t core_tx_dur_us = wait_tx_done_async(UART_NUM_1, 40);  // uart_num, max_wait_duration_ms
+    
+        int64_t duration_us = esp_timer_get_time() - cur_snap;
+    
+        setDE(false);  // 수신 모드 전환
 
-    setDE(true);  // 송신 모드 전환
+        // uart0_printf("[%11lldus] TX1 (USE %5lld us in DUR %5lld us), len=%4d, { [2]%3d, [7]%3d } \n",
+        //              esp_timer_get_time(), core_tx_dur_us, duration_us,
+        //              tx_len, packet_buffer[2], packet_buffer[7]);
 
-    int64_t cur_snap = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
+        xSemaphoreGive(semaTX1);  // 세마포어 해제
+    }
 
-    tx_len = uart_write_bytes(UART_NUM_1, packet_buffer, packet_len);
-    // int64_t core_tx_dur_us = wait_tx_done_async(UART_NUM_1, pdMS_TO_TICKS(100));  // uart_num, max_wait_duration_ms
-    uart_wait_tx_done(UART_NUM_1, pdMS_TO_TICKS(30)); // 30ms
-
-    int64_t duration_us = esp_timer_get_time() - cur_snap;
-
-    setDE(false);  // 수신 모드 전환
-
-    uart0_printf("[%8d] TX1 (DUR=%lld us) len = %d, { [2]%3d, [7]%3d } \n",
-                 millis(), duration_us,
-                 tx_len, packet_buffer[2], packet_buffer[7]);
 
     return true;
 }
@@ -275,18 +282,17 @@ void uart0_event_task(void *pvParameters) {
 //   UART1 EVENT HANDLER and Parser/Builder
 //---------------------------------------------
 //---------------------------------------------
-#define TAG_1 "UART1"
-
 
 void uart1_event_task(void *pvParameters) {
     int64_t pure_read_init_us = 0;
-    int64_t pure_read_dur_us = 0;
-    int64_t pure_read_one_packet_total_us = 0;
+    int64_t read_dur_us_pure = 0;
+    int64_t one_packet_read_total_us_pure = 0;
 
     int one_packet_len = 0;
     int one_packet_event_count = 0;
     int64_t one_packet_read_init_us = 0;   // us 단위로 변경
     int64_t one_packet_read_total_us = 0;  // us 단위로 변경
+    int packet_sensor_count = 0;
 
     int packet_group_id = 0;
     int packet_msg_id = 0;
@@ -302,16 +308,17 @@ void uart1_event_task(void *pvParameters) {
     uart_event_t event;
     while (true) {
         if (xQueueReceive(UART1_EventQueue, (void *)&event, portMAX_DELAY)) {
-            // ESP_LOGM(TAG_1, "[%8d]UART1 Event : %d, size=%d \n", millis(), event.type, event.size);
+            // uart0_printf("[%8d] RX1 Event=%d, len=%d \n", millis(), event.type, event.size);
+            // uart0_printf("[%11lldus] RX1 Event=%d, len=%d \n", esp_timer_get_time(), event.type, event.size);
 
             switch (event.type) {
                 case UART_DATA: {
                     pure_read_init_us = esp_timer_get_time();
                     int read_len = uart_read_bytes(UART_NUM_1, eventBuffer, event.size, 5 / portTICK_PERIOD_MS);
-                    pure_read_dur_us = esp_timer_get_time() - pure_read_init_us;
+                    read_dur_us_pure = esp_timer_get_time() - pure_read_init_us;
 
                     if (eventBuffer[0] == HEADER_SYNC && eventBuffer[1] == HEADER_SYNC) {
-                        // ESP_LOGM(TAG_1, "[%8d] rx1 go [2]%d \n", millis(), eventBuffer[2]);
+                        // uart0_printf("[%8d] rx1 go [2]%d \n", millis(), eventBuffer[2]);
                         packet_group_id = eventBuffer[IDX_GROUP_ID];
                         packet_msg_id = eventBuffer[IDX_MSG_ID];
 
@@ -340,8 +347,8 @@ void uart1_event_task(void *pvParameters) {
 
                         one_packet_event_count = 0;
                         one_packet_len = 0;
-                        one_packet_read_init_us = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
-                        pure_read_one_packet_total_us = 0;
+                        one_packet_read_init_us = pure_read_init_us;  // 마이크로초 단위로 타이머 초기화
+                        one_packet_read_total_us_pure = 0;
 
                         memset(currentRxBuffer, 0, PACKET_LEN_SEN_1Bd);
                     }
@@ -351,63 +358,106 @@ void uart1_event_task(void *pvParameters) {
                     one_packet_event_count++;
 
                     if (packet_to_read < one_packet_len) {
-                        ESP_LOGM(TAG_1, "[%8d] size:%d, RX1 Times: %d, %d in Q, size: %d [2]%d ++++ ++++ ++++ Overflows! ++++ ++++ ++++ ++++\n",
-                                     millis(), event.size, one_packet_event_count, 0, one_packet_len, currentRxBuffer[2]);
-                        ESP_LOGM(TAG_1, "\t Cur buffer) [0]%4d [1]%4d [2]%4d [3]%4d ~ [%d]%4d \n",
-                                     eventBuffer[0], eventBuffer[1], eventBuffer[2], eventBuffer[3], event.size - 1, eventBuffer[event.size - 1]);
+                        uart0_printf("[%11lldus] size:%d, RX1 Times: %d, %d in Q, size: %d [2]%d ++++ ++++ ++++ Long Error ++++ ++++ ++++ ++++\n",
+                                    esp_timer_get_time(), event.size, one_packet_event_count, 0, one_packet_len, currentRxBuffer[2]);
+                        uart0_printf("\t Cur buffer) [0]%4d [1]%4d [2]%4d [3]%4d ~ [%d]%4d \n",
+                                    eventBuffer[0], eventBuffer[1], eventBuffer[2], eventBuffer[3], event.size - 1, eventBuffer[event.size - 1]);
                     }
 
-                    pure_read_one_packet_total_us += pure_read_dur_us;
+                    one_packet_read_total_us_pure += read_dur_us_pure;
                     one_packet_read_total_us = esp_timer_get_time() - one_packet_read_init_us;
 
                     int queue_num = 0;
                     if (eventBuffer[event.size - 1] == TAIL_SYNC) {
-                        int queue_num = uxQueueMessagesWaiting(UART1_EventQueue);
+                        queue_num = uxQueueMessagesWaiting(UART1_EventQueue);
                         // if ((currentRxBuffer[2] % 100 == 0) || (currentRxBuffer[2] % 100 == 1))
-                        ESP_LOGM(TAG_1, "[%8d] RX1 (pure dur=%5lld us in Total=%5lld us), Times: %d, %d in Q, size: %d [2]%d\n",
-                                     millis(), pure_read_one_packet_total_us, one_packet_read_total_us,
-                                     one_packet_event_count, queue_num, one_packet_len, currentRxBuffer[2]);
+                        // uart0_printf("[%8d] RX1 (USE %5lld us in DUR %5lld us), len=%d, 1~%d,%2dea in Q [2]%3d\n",
+                        //              millis(), one_packet_read_total_us_pure, one_packet_read_total_us,
+                        //              one_packet_len, one_packet_event_count, queue_num, currentRxBuffer[2]);
+
+                        // 온갖 테스트 코드
+                        if(true)
+                        {
+                            // setDE(true);  // 송신 모드 전환
+                            // setDE(false);  // 수신 모드 전환
+
+                            packet_sensor_count++;
+                            if(packet_sensor_count % 100 == 0){
+                                uart0_printf(".");
+                                
+                                if(packet_sensor_count %10000 == 0){
+                                    uart0_printf("\n");
+                                }
+                            }
+                        }
+
+                        //  reset log variables
+                        one_packet_event_count = 0;
+                        one_packet_len = 0;
+                        one_packet_read_init_us = pure_read_init_us;  // 마이크로초 단위로 타이머 초기화
+                        one_packet_read_total_us = 0;
+                        one_packet_read_total_us_pure = 0;
+                        memset(eventBuffer, 0, 128);
 
                         processRX1(currentRxBuffer, one_packet_len);  // 패킷 처리
                     } else {
                         if (9 < one_packet_event_count) {  // 9  is the maximum number of events in one packet.
-                            // ESP_LOGM(TAG_1, "\n[%8d] RX1 Total=%5lld us, Times: %d, %d in Q, size: %d [2]%d ++++ WRONG ++++\n",
-                            //              millis(), one_packet_read_total_us, one_packet_event_count, queue_num, one_packet_len, currentRxBuffer[2]);
+                            uart0_printf("\n[%11lldus] RX1 Total=%5lld us, Times: %d, %d in Q, len: %d [2]%d ++++ WRONG ++++\n",
+                                esp_timer_get_time(), one_packet_read_total_us, one_packet_event_count, queue_num, one_packet_len, currentRxBuffer[2]);
                             // printBuf(currentRxBuffer + one_packet_len - event.size, event.size, one_packet_event_count);
                             xQueueReset(UART1_EventQueue);
                             uart_flush(UART_NUM_1);
                         }
                     }
-                    // ESP_LOGM(TAG_1, "\n[%8d]UART1 UART_DATA done \n", millis());
+                    // uart0_printf("\n[%8d]UART1 UART_DATA done \n", millis());
 
                 } break;
                 case UART_BREAK:
                 case UART_BUFFER_FULL:
-                case UART_FIFO_OVF:
-                    uart0_println("[%8d]UART1 Event : %d, size=%d ++++ ++++ ++++ ++++ ++++ ++++ ++++", millis(), event.type, event.size);
+                case UART_FIFO_OVF: {
+                    int queue_num = uxQueueMessagesWaiting(UART1_EventQueue);
+
+                    uart0_printf("\n[%11lldus] RX1 ERROR ++++ ++++ ++++ type=%d, len=%d (1:BREAK, 2:FULL, 3:Overflow) ++++ ++++ ++++ ++++ \n", 
+                                esp_timer_get_time(), event.type, event.size);
+
                     if (event.type == UART_BREAK) {
-                        if (4 < event.size) {
+                        // if (4 < event.size) 
+                        {
                             int read_len = uart_read_bytes(UART_NUM_1, eventBuffer, event.size, 5 / portTICK_PERIOD_MS);
-                            ESP_LOGM(TAG_1, "\t UART_BREAK) [0]%4d [1]%4d [2]%4d [3]%4d ~ [%d]%4d \n",
-                                         eventBuffer[0], eventBuffer[1], eventBuffer[2], eventBuffer[3], event.size - 1, eventBuffer[event.size - 1]);
+                            // uart0_printf("\t UART_BREAK) [0]%4d [1]%4d [2]%4d [3]%4d ~ [%d]%4d \n",
+                            //              eventBuffer[0], eventBuffer[1], eventBuffer[2], eventBuffer[3], event.size - 1, eventBuffer[event.size - 1]);
+                            uart0_printf("\t UART_BREAK) ");
+                            for (int i = 0; i < event.size; i++) {
+                                uart0_printf("[%d]%4d ", i, eventBuffer[i]);
+                            }
+                            uart0_printf("\n");
                         }
                     }
+                    else { // // UART_BUFFER_FULL, UART_FIFO_OVF
+                        xQueueReset(UART1_EventQueue);
+                        uart_flush(UART_NUM_1);
+                        // // RX 이벤트 큐 정리 (불필요한 이벤트 제거)
+                        //         clear_uart_event_queue(UART1_EventQueue);
+                    }
 
-                    xQueueReset(UART1_EventQueue);
-                    uart_flush(UART_NUM_1);
-                    // // RX 이벤트 큐 정리 (불필요한 이벤트 제거)
-                    //         clear_uart_event_queue(UART1_EventQueue);
-                    break;
+                    // uart0_printf("[%8d] RX1 (USE %5lld us in DUR %5lld us), len=%d, 1~%d,%2dea in Q [2]%3d\n",
+                    //     millis(), one_packet_read_total_us_pure, one_packet_read_total_us,
+                    //     event.size, one_packet_event_count, queue_num, eventBuffer[2]);
+
+                }   break;
                 case UART_PATTERN_DET:
-                    uart0_println("[%8d]UART1 Event : %d, size=%d", millis(), event.type, event.size);
+                    uart0_println("[%11lldus]UART1 Event : %d, len=%d", esp_timer_get_time(), event.type, event.size);
                     uart_flush_input(UART_NUM_1);
                     break;
                 default:
-                    break;
+                    uart0_println("[%11lldus]UART1 Event : %d, len=%d", esp_timer_get_time(), event.type, event.size);
+                break;
             }  // switch (event.type)
         }  // if (xQueueReceive(UART1_EventQueue, (void *)&event, portMAX_DELAY))
 
+        // uart0_printf("[%11lld] RX1 event end...\n", esp_timer_get_time());
         vTaskDelay(0);  // 아무 이벤트가 없으면 CPU 점유권을 넘김
+
     }  // while (true)
 }
 
@@ -524,34 +574,34 @@ int processRX1_SubDebug(int event_size) {
 
     if (true) {
         int read_len = uart_read_bytes(UART_NUM_1, currentRxBuffer, event_size, portMAX_DELAY);
-        ESP_LOGM(TAG_1, "(%d/%d)%s\n", read_len, event_size, currentRxBuffer);
+        uart0_printf("(%d/%d)%s\n", read_len, event_size, currentRxBuffer);
 
         return 0;
     }
 
     int read_len = uart_read_bytes(UART_NUM_1, currentRxBuffer, PACKET_LEN_OSD, portMAX_DELAY);
-    ESP_LOGM(TAG_1, "(%d/%d), head {%d, %d}\n", read_len, event_size,
+    uart0_printf("(%d/%d), head {%d, %d}\n", read_len, event_size,
                  currentRxBuffer[0], currentRxBuffer[1]);
 
     // read_len = uart_read_bytes(UART_NUM_1, currentRxBuffer + 8, PACKET_LEN_OSD - 8, portMAX_DELAY);
-    ESP_LOGM(TAG_1, "(%d/%d), tail {%d, %d}\n", read_len, PACKET_LEN_OSD - 8,
+    uart0_printf("(%d/%d), tail {%d, %d}\n", read_len, PACKET_LEN_OSD - 8,
                  currentRxBuffer[PACKET_LEN_OSD - 2], currentRxBuffer[PACKET_LEN_OSD - 1]);
 
     if ((checkPacketHead(currentRxBuffer) == true) && (currentRxBuffer[PACKET_LEN_OSD - 1] == TAIL_SYNC))
         copyPacketToOSDBuf(MY_BOARD_ID, currentRxBuffer, (currentRxBuffer + HEAD_LEN));
     else {
-        ESP_LOGM(TAG_1, "ERROR {%d, %d ~ %d}\n",
+        uart0_printf("ERROR {%d, %d ~ %d}\n",
                      currentRxBuffer[0], currentRxBuffer[1], currentRxBuffer[PACKET_LEN_OSD - 1]);
 
         byte *cp = currentRxBuffer;
 
-        ESP_LOGM(TAG_1, "[HEAD] %d, %d, %d, %d | %d, %d, %d, %d | %d, %d, %d, %d | %d, %d, %d, %d \n",
+        uart0_printf("[HEAD] %d, %d, %d, %d | %d, %d, %d, %d | %d, %d, %d, %d | %d, %d, %d, %d \n",
                      cp[0], cp[1], cp[2], cp[3], cp[4], cp[5], cp[6], cp[7],
                      cp[8], cp[9], cp[10], cp[11], cp[12], cp[13], cp[14], cp[15]);
 
         int j = 16;
         while (true) {
-            ESP_LOGM(TAG_1, "[%02d] %3d, %3d, %3d, %3d | %3d, %3d, %3d, %3d | %3d, %3d, %3d, %3d | %3d, %3d \n", j,
+            uart0_printf("[%02d] %3d, %3d, %3d, %3d | %3d, %3d, %3d, %3d | %3d, %3d, %3d, %3d | %3d, %3d \n", j,
                          cp[j + 0], cp[j + 1], cp[j + 2], cp[j + 3], cp[j + 4], cp[j + 5], cp[j + 6], cp[j + 7],
                          cp[j + 8], cp[j + 9], cp[j + 10], cp[j + 11], cp[j + 12], cp[j + 13]);
             j += 14;
@@ -559,7 +609,7 @@ int processRX1_SubDebug(int event_size) {
                 break;
         }
 
-        ESP_LOGM(TAG_1, "[TAIL] %d, %d\n",
+        uart0_printf("[TAIL] %d, %d\n",
                      cp[HEAD_LEN + SUB_HEAD_LEN + PACKET_LEN_OSD_BODY + 0],
                      cp[HEAD_LEN + SUB_HEAD_LEN + PACKET_LEN_OSD_BODY + 1]);
 
@@ -577,25 +627,14 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
     byte *rx_head = rx1_packet;
     byte *bufferToParse = rx1_packet + HEAD_LEN;
 
-    // int read_len = uart_read_bytes(UART_NUM_1, rx_head, HEAD_LEN, OS_100ms * 5);
-    // int read_len = uart_read_bytes(UART_NUM_1, rx_head, HEAD_LEN, portMAX_DELAY);
     int read_len = rx1_packet_size;
 
     if (checkPacketHead(rx_head) == false) {
-        ESP_LOGM(TAG_1, "[%8d] RX1 Header BAD- size = %d/%d (ME = %d) \n", millis(), read_len, rx1_packet_size, MY_BOARD_ID);
+        uart0_printf("[%8d] RX1 Header BAD- size = %d/%d (ME = %d) \n", millis(), read_len, rx1_packet_size, MY_BOARD_ID);
         printPacketHeader(rx_head, 10);
-
-        // memset(packetBuf_Debug, 0, 256);
-        // if (HEAD_LEN <= rx1_packet_size) {
-        //     uart_read_bytes(UART_NUM_1, packetBuf_Debug + HEAD_LEN, rx1_packet_size - HEAD_LEN, portMAX_DELAY);
-        //     memcpy(packetBuf_Debug, rx_head, HEAD_LEN);
-        //     printBuf(packetBuf_Debug, rx1_packet_size, 38);
-        // }
-        // uart_flush_input(UART_NUM_1);  // RX 버퍼 memset
 
         return -1;
     }
-    // ESP_LOGM(TAG_1, "[%8d] RX1 Header GOOD, size = %d, [2]%d \n", millis(), read_len, rx_head[2]);
 
     int rx_TX_BOARD_ID = rx_head[IDX_TX_BOARD_ID];
     int rx_GROUP_ID = rx_head[IDX_GROUP_ID];
@@ -605,16 +644,11 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
         case G_DEVICE_IO: {  // main : only tx,  sub : only rx
             switch (rx_MSG_ID) {
                 case M_PERMIT:
-                    // read_len = uart_read_bytes(UART_NUM_1, rx_head + HEAD_LEN, TAIL_LEN, portMAX_DELAY);
-
                     parsePacket_Permit(rx_head, nullptr, MY_BOARD_ID, rs485Bus_granted);
-                    if(rs485Bus_granted == true) {
-                        ESP_LOGM(TAG_1, "[%8d] RX1 {PERMIT to id#%d}, [2]%d \n", millis(),
-                                rx_head[IDX_PERMIT_ID], rx_head[IDX_VER]);
-                    }
+                    uart0_printf("[%8d] RX1 PERMIT (%d to %d)  [2]%3d \n", millis(),
+                                 rx_TX_BOARD_ID, rx_head[IDX_PERMIT_ID], rx_head[IDX_VER]);
 
                     indexPermit = rx_head[IDX_DATA_1];
-                    // printPacketHeader(rx_head, 11);
                     break;
 
                 default:
@@ -630,13 +664,14 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
             int tx_board_id;
             parsePacket_Sensor_1Bd(MY_BOARD_ID, rx_head, bufferToParse, tx_board_id);
 
-            // ESP_LOGM(TAG_1, "\n[%8d] RX1, Sensor {Sender:%d ==> ME} [2]%d \n",
+            // uart0_printf("\n[%8d] RX1, Sensor {Sender:%d ==> ME} [2]%d \n",
             //              millis(), tx_board_id, rx_head[IDX_VER]);
 
             if (BoardID_MAX == tx_board_id) {
-                // vTaskDelay(2);
-                isDuringPermitAndRx = false;
-                ESP_LOGM(TAG_1, "[%8d] RX1 Sensor cycle done, id= %d, [2]=%d \n\n", millis(), tx_board_id, rx_head[2]);
+                isBoard0_UART1_using = false;
+                uart0_printf("u");
+
+                // uart0_printf("[%8d] RX1 Sensor completed = %d, [2]=%d \n\n", millis(), tx_board_id, rx_head[2]);
             }
 
             return 0;
@@ -654,68 +689,67 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
             break;
 
         default:
-            ESP_LOGM(TAG_1, "[%8d]>> ERROR, WRONG GROUP ID = %d \n", rx_GROUP_ID);
+            uart0_printf("[%8d]>> ERROR, WRONG GROUP ID = %d \n", rx_GROUP_ID);
             return -2;
     }
 
     // RX 데이터 정상 수신 후 추가 이벤트 제거
-    clear_uart_event_queue(UART1_EventQueue);
-
-    // uart0_println("Packet received successfully");
+    // clear_uart_event_queue(UART1_EventQueue);
 
     return 0;
 }
 
-// 전역 RTOS 뮤텍스
-static SemaphoreHandle_t permit_mutex;
-
-void init_permit_mutex() {
-    permit_mutex = xSemaphoreCreateMutex();
-}
+SemaphoreHandle_t semaSendPermit;  // 세마포어 핸들 생성
 
 void considerToPermit(int permit_interval) {
     if (MY_BOARD_ID != 0)
         return;
 
-    if (xSemaphoreTake(permit_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-
-        if (permit_interval < (millis() - tick_permit_last)) {
-            isDuringPermitAndRx = true;
-
-            // if (isSubOSD_Filled == true)
-            //     continue;
-
-            reser_1 = (reser_1 + 1) % 100;
-            buildPacket_Permit(packetBuf_DeviceIO, M_BOARD_1);  // M_BOARD_1 : destination board id
-
-            sendPacket1(packetBuf_DeviceIO, HEAD_LEN + TAIL_LEN);
-
-            ESP_LOGM(TAG_1, "[%8d] check permit %d ms (last=%d) [7]%d \n", millis(), millis() - tick_permit_last,
-                        tick_permit_last, reser_1);
-            tick_permit_last = millis();
-
-        } else {
-            // ESP_LOGM(TAG_1, "[%8d] permit skip by %d ms \n", millis(), millis() - tick_permit_last);
-        }
-
-        xSemaphoreGive(permit_mutex);
+    // permit_interval is 1 or 120
+    if ((millis() - tick_permit_last) < permit_interval) {
+        // if (isSubOSD_Filled == true)
+        //     continue;
+        return;
     }
 
+    if (xSemaphoreTake(semaSendPermit, portMAX_DELAY) == pdTRUE) {
+        reser_1 = (reser_1 + 1) % 200;
+        buildPacket_Permit(packetBuf_DeviceIO, M_BOARD_1);  // M_BOARD_1 : destination board id
+
+        isBoard0_UART1_using = true;
+        sendPacket1(packetBuf_DeviceIO, HEAD_LEN + TAIL_LEN);
+
+        // uart0_printf("[%8d] check permit{%d} %d ms (last=%d) [7]%d \n", millis(), permit_interval, millis() - tick_permit_last,
+        //             tick_permit_last, reser_1);
+        tick_permit_last = millis();
+
+        xSemaphoreGive(semaSendPermit);
+    }
 }
 
 //  main task on core 0
 void pumpSerial(void *pParam) {
-    uart0_printf("PUMP- ENTER\n");
+    uart0_printf("[%8d]PUMP- ENTER\n", millis());
     // esp_task_wdt_delete(NULL);  // 현재 태스크를 WDT 감시에서 제외
 
     int ret_val = 0;
 
     while (true) {
-        vTaskDelay(1);
+        vTaskDelay(1); // pumpSerial() task 초입.
 
         // uart0_printf("[%8d] PUMP loop = %d (dip=%d, adc t/f=%d) \n", millis(), pump_count, MY_BOARD_ID, adc_scan_done);
 
-        if (MY_BOARD_ID == 0) {
+        if (MY_BOARD_ID == 30) { // FAKE for TESTING
+            if (adc_scan_done != true) {
+                continue;
+            }
+            if (isBoard0_UART1_using == true) {
+                continue;
+            }
+
+            adc_scan_done = false;  // turn on loopADCRead, it will give sema to draw led task.
+        }
+        else if (MY_BOARD_ID == 0) {
             // if (isSubOSD_Filled == true) {
             //     sendPacket1(packetBuf_OSDSub, PACKET_LEN_OSD);
             //     isSubOSD_Filled = false;
@@ -724,47 +758,47 @@ void pumpSerial(void *pParam) {
             if (adc_scan_done != true) {
                 continue;
             }
-
-            if (isDuringPermitAndRx == true) {
+            if (isBoard0_UART1_using == true) {
                 continue;
+            }
+            uart0_printf("U");
+
+
+            if((pump_count % 2) == 1) {
+                buildPacket_Sensor_1Bd(MY_BOARD_ID, packetBuf, forceBuffer_rd, SIZE_X, SIZE_Y);
+                sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);               
+            } else {
             }
 
             //  permit to board
             considerToPermit(1);  //  1 : 1ms interval
 
+            // Send Sensor Data to UART0
             buildPacket_Sensor_1Set(MY_BOARD_ID, packetBuf, forceBuffer_rd, NUM_1SET_SEN_WIDTH, NUM_1SET_SEN_HEIGHT);
             // sendPacket0(packetBuf, PACKET_LEN_SEN_1SET);  // it consumes 11ms per one board. so for 2, it consumes 22ms.
 
             adc_scan_done = false;  // turn on loopADCRead, it will give sema to draw led task.
 
         } else {
-            // rs485Bus_granted = true;
+            // rs485Bus_granted = true; // FAKE for TESTING
             if ((adc_scan_done != true) || (rs485Bus_granted != true)) {
                 continue;
             }
+            
+            isBoard0_UART1_using = true;
+            uart0_printf("\nU\n");
 
             buildPacket_Sensor_1Bd(MY_BOARD_ID, packetBuf, forceBuffer_rd, SIZE_X, SIZE_Y);
-            vTaskDelay(0);
-            //  이거 풀어서 7개씩 보내면 240초 후에 데이터 깨짐.
             sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
-            packetBuf[3] = 2;
+
+            packetBuf[3] = 1;
             sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
-            packetBuf[3] = 3;
-            sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
-            packetBuf[3] = 4;
-            sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
-            packetBuf[3] = 5;
-            sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
-            packetBuf[3] = 6;
-            sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-            vTaskDelay(0);
             packetBuf[3] = 7;
             sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
+
+            vTaskDelay(0);  // context switch
+            uart0_printf("u");
+            isBoard0_UART1_using = false;
 
             rs485Bus_granted = false;
             adc_scan_done = false;

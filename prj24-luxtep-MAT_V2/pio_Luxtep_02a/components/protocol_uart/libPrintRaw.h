@@ -3,9 +3,6 @@
 
 #include "driver/uart.h"
 
-// #define ESP_LOGM(tag, fmt, ...)  printf("[%s] " fmt "\n", tag, ##__VA_ARGS__)
-#define ESP_LOGM(tag, fmt, ...)  printf(fmt, ##__VA_ARGS__)
-
 // UART0에서 printf 스타일 출력 함수
 void uart0_printf(const char *fmt, ...) {
     char buffer[128];

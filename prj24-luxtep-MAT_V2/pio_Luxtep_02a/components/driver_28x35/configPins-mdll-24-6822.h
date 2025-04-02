@@ -299,15 +299,20 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     digitalWrite(pinMuxSenSig012[pin_signal], muxSig3PinsVal[mux_ch][pin_signal]);
 
     int row_index = mux_id * NUM_MUX_OUT + mux_ch;
+    _vout_raw = _vref_raw =0;
 
     taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
 
     // int64_t cur_snap = esp_timer_get_time();                               // 마이크로초 단위로 타이머 초기화
-    VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut);  // ==> make interrupt error in uart
+
+    VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut); // <========
+    
     // int64_t duration_us = esp_timer_get_time() - cur_snap;
 
     // int64_t cur_snap2 = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
-    VRef_Value[col_index][row_index] = _vref_raw = adc1_get_raw(pinVRef);
+
+    VRef_Value[col_index][row_index] = _vref_raw = adc1_get_raw(pinVRef); // <========
+    
     // int64_t duration_us2 = esp_timer_get_time() - cur_snap2;
 
     // DUR1= 38 us(adc1= 2878), DUR2= 26 us, (adc2=    0) ==> 측정 시간이 매우 길다 !
@@ -332,7 +337,7 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     bool is_noise = false;
     if (0 < calc_value) {
         if (0 < backupVolt[col_index][row_index]) {  // remove noise
-            uart0_printf("[%8d]gara 222 force =%d, backup=%d, (X%d, Y%d) -------------------\n", millis(), calc_value, backupVolt[col_index][row_index], col_index, row_index);
+            // uart0_printf("[%8d]gara 222 force =%d, backup=%d, (X%d, Y%d) -------------------\n", millis(), calc_value, backupVolt[col_index][row_index], col_index, row_index);
         } else {
             is_noise = true;
         }
@@ -343,9 +348,9 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     else
         calcedVolt[col_index][row_index] = calc_value - NOISE_THRESHOLD;
 
-    // 만일 peak noise 라면 0으로 강제 지정
-    if (is_noise)
-        calcedVolt[col_index][row_index] = 0;
+    // 만일 peak noise 라면 0으로 강제 지정 ==> ADC, LED 동시 동작시에만 지정.
+    // if (is_noise)
+    //     calcedVolt[col_index][row_index] = 0;
 
     //  측정값 백업
     backupVolt[col_index][row_index] = calc_value;
@@ -362,20 +367,20 @@ void readAndCalc_in1Mux(int col_index, int mux_id) {
     // {0, 0, 0},  // channel 0
     readAndCalc(col_index, mux_id, 0, 0);
     // {1, 0, 0},  // channel 1
-    readAndCalc(col_index, mux_id, 1, 0); // only pin 0 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 1, 0);
     // {1, 1, 0},  // channel 3   It means S0=1, S1=1, S2=0
-    readAndCalc(col_index, mux_id, 3, 1); // only pin 1 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 3, 1);
     // {0, 1, 0},  // channel 2
-    readAndCalc(col_index, mux_id, 2, 0); // only pin 0 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 2, 0);
 
     // {0, 1, 1},  // channel 6
-    readAndCalc(col_index, mux_id, 6, 2); // only pin 2 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 6, 2);
     // {1, 1, 1},  // channel 7
-    readAndCalc(col_index, mux_id, 7, 0); // only pin 0 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 7, 0);
     // {1, 0, 1},  // channel 5
-    readAndCalc(col_index, mux_id, 5, 1); // only pin 1 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 5, 1);
     // {0, 0, 1},  // channel 4
-    readAndCalc(col_index, mux_id, 4, 0); // only pin 0 changed among 0, 1, 2
+    readAndCalc(col_index, mux_id, 4, 0);
 }
 
 void readSen1Col(int col_index) {
@@ -394,8 +399,8 @@ void readSen1Col(int col_index) {
     }
 
     //  row : 32, 33
-    readAndCalc(col_index, 4, 0, 0);  // mux id : 4, out : 0, sigpin : 0. 8*4+0 = 32nd
-    readAndCalc(col_index, 4, 1, 0);  // mux id : 4, out : 1, sigpin : 0. 8*4+1 = 33rd
+    readAndCalc(col_index, 4, 0, 0);  // mux id : 4, out : 0, sigpin : 0
+    readAndCalc(col_index, 4, 1, 0);  // mux id : 4, out : 1, sigpin : 0
 }
 
 void readSenCh(int sen_ch) {
@@ -411,12 +416,13 @@ int adc_scan_count_main = 0;
 void adcScan_DoubleBuf() {
     //  for ext mux id loop
     for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-        // for (int col_pwr = NUM_PWR - 1; 0 <= col_pwr; col_pwr--) {// 역순
+    // for (int col_pwr = NUM_PWR - 1; 0 <= col_pwr; col_pwr--) {// 역순 테스트
         selectPwrCh(col_pwr);
 
         readSen1Col(col_pwr);  // temp
     }  // end - for ext mux id loop
 
+    //  Copy ADC buffer to forceBuffer_rd
     {
         byte* forceBuffer_prev = forceBuffer_rd;
 
@@ -445,7 +451,6 @@ void adcScan_DoubleBuf() {
         // uart0_printf("[%8d] copy force buf ends * ptr:%d \n", millis(), forceBuffer_wr);
     }
 
-    adc_scan_done = true;
     adc_scan_count_main++;
 }
 

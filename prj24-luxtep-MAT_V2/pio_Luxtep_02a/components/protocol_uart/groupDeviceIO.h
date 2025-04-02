@@ -10,7 +10,7 @@ int reser_1 = 0;
 int buildPacket_Permit(byte *tx_packet_buffer, int board_id_permitted) {
     tx_packet_buffer[IDX_HEADER_0] = HEADER_SYNC;   // 0xFF
     tx_packet_buffer[IDX_HEADER_1] = HEADER_SYNC;   // 0xFF
-    tx_packet_buffer[IDX_VER] = reser_1;            // Major Ver = 2 (2025-02-20)
+    tx_packet_buffer[IDX_VER] = reser_1 + 0;            // Major Ver = 2 (2025-02-20)
     tx_packet_buffer[IDX_TX_BOARD_ID] = M_BOARD_0;  // ONLY M_BOARD_0 can send permission packet
 
     tx_packet_buffer[IDX_GROUP_ID] = G_DEVICE_IO;          // GROUP ID
@@ -32,7 +32,6 @@ int parsePacket_Permit(byte *rx_packet_header, byte *rx_packet_body, int my_boar
     // uart0_printf("SUB RX, permit id = %d \n", rx_packet_body[IDX_PERMIT_ID]);
 
     if (rx_packet_header[IDX_PERMIT_ID] == my_board_id) {
-        // vTaskDelay(1);
         key_granted = true;
     }
 

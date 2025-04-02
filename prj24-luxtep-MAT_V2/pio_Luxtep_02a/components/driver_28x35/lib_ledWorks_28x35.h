@@ -284,6 +284,8 @@ void blurObjectOutline() {
 }
 
 void draw_ledObjects() {
+    uart0_printf("L");
+
     memset(ledBlurBuf, 0, NUM_LED_IN_1_BOARD);
 
     blurObjectOutline();  // blur outline, 46us~48us typically. And 259, 100us exceptioanlly.
@@ -301,6 +303,7 @@ void draw_ledObjects() {
     drawIndicator();
 
     drawPixels();  // 픽셀 그려주는 작업
+    uart0_printf("l");
 }
 
 #endif  // _LIB_LEDWORKS_28x35_H_

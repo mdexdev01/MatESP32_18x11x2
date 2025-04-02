@@ -1,0 +1,116 @@
+
+[   49776] TX1 go
+[   49778] TX1 (DUR=235 in 254 us) len = 10, { [2] 95, [7] 95 }
+[   49778] check permit 14 ms (last=49764) [7]95
+[   49780]UART1 Event : 0, size=120
+[   49781]UART1 Event : 0, size=120
+[   49782]UART1 Event : 0, size=120
+[   49783]UART1 Event : 0, size=120
+[   49785]UART1 Event : 0, size=120
+[   49786]UART1 Event : 0, size=120
+[   49787]UART1 Event : 0, size=120
+[   49788]UART1 Event : 0, size=120
+[   49788]UART1 Event : 0, size=2
+[   49788] RX1 (pure dur=  100 us in Total= 8499 us), Times: 9, 0 in Q, size: 962 [2]95
+[   49790] RX1 Sensor completed = 7, [2]=95
+
+[   49790] TX1 go
+[   49792] TX1 (DUR=235 in 254 us) len = 10, { [2] 96, [7] 96 } 
+[   49792] check permit 14 ms (last=49778) [7]96
+[   49794]UART1 Event : 0, size=120
+[   49795]UART1 Event : 0, size=120
+[   49796]UART1 Event : 0, size=120
+[   49797]UART1 Event : 0, size=120
+[   49799]UART1 Event : 0, size=120
+[   49800]UART1 Event : 0, size=120
+[   49801]UART1 Event : 0, size=120
+[   49802]UART1 Event : 0, size=120
+[   49802]UART1 Event : 0, size=2
+[   49802] RX1 (pure dur=  107 us in Total= 8497 us), Times: 9, 0 in Q, size: 962 [2]96
+[   49804] RX1 Sensor completed = 7, [2]=96
+
+[   49804] TX1 go
+[   49806] TX1 (DUR=235 in 254 us) len = 10, { [2] 97, [7] 97 } 
+[   49806] check permit 14 ms (last=49792) [7]97
+[   49808]UART1 Event : 0, size=120
+[   49809]UART1 Event : 0, size=120
+[   49810]UART1 Event : 0, size=120
+[   49811]UART1 Event : 0, size=120
+[   49813]UART1 Event : 0, size=120
+[   49814]UART1 Event : 0, size=120
+[   49815]UART1 Event : 0, size=120
+[   49816]UART1 Event : 0, size=120
+[   49816]UART1 Event : 0, size=2
+[   49816] RX1 (pure dur=  101 us in Total= 8494 us), Times: 9, 0 in Q, size: 962 [2]97
+[   49818] RX1 Sensor completed = 7, [2]=97
+
+[   49818] TX1 go
+[   49820] TX1 (DUR=235 in 254 us) len = 10, { [2] 98, [7] 98 }
+[   49820] check permit 14 ms (last=49806) [7]98
+[   49822]UART1 Event : 0, size=120
+[   49823]UART1 Event : 0, size=120 
+[   49824]UART1 Event : 0, size=120
+[   49825]UART1 Event : 0, size=120
+[   49827]UART1 Event : 0, size=120
+[   49828]UART1 Event : 0, size=120
+[   49829]UART1 Event : 0, size=120
+[   49830]UART1 Event : 0, size=120
+[   49830]UART1 Event : 0, size=2
+[   49830] RX1 (pure dur=  102 us in Total= 8498 us), Times: 9, 0 in Q, size: 962 [2]98
+[   49832] RX1 Sensor completed = 7, [2]=98
+
+[   49832] TX1 go
+[   49834] TX1 (DUR=235 in 254 us) len = 10, { [2] 99, [7] 99 }
+[   49834] check permit 14 ms (last=49820) [7]99
+[   49836]UART1 Event : 0, size=120
+[   49837]UART1 Event : 0, size=120
+[   49838]UART1 Event : 0, size=120 
+[   49839]UART1 Event : 0, size=120
+[   49841]UART1 Event : 0, size=120
+[   49842]UART1 Event : 0, size=120
+[   49843]UART1 Event : 0, size=120
+[   49844]UART1 Event : 0, size=120
+[   49844]UART1 Event : 0, size=2
+[   49844] RX1 (pure dur=  107 us in Total= 8494 us), Times: 9, 0 in Q, size: 962 [2]99
+[   49846] RX1 Sensor completed = 7, [2]=99
+
+[   49846] TX1 go
+[   49848] TX1 (DUR=235 in 254 us) len = 10, { [2]  0, [7]  0 }
+[   49848] check permit 14 ms (last=49834) [7]0
+[   49850]UART1 Event : 0, size=120
+[   49851]UART1 Event : 0, size=120
+[   49852]UART1 Event : 0, size=120
+[   49853]UART1 Event : 0, size=120 
+[   49855]UART1 Event : 0, size=120
+[   49856]UART1 Event : 0, size=120
+[   49857]UART1 Event : 0, size=120
+[   49858]UART1 Event : 0, size=120
+[   49858]UART1 Event : 0, size=2
+[   49858] RX1 (pure dur=  101 us in Total= 8495 us), Times: 9, 0 in Q, size: 962 [2]0
+[   49860] RX1 Sensor completed = 7, [2]=0
+
+[   49860] TX1 go
+[   49862] TX1 (DUR=236 in 255 us) len = 10, { [2]  1, [7]  1 }
+[   49862] check permit 14 ms (last=49848) [7]1
+[   49864]UART1 Event : 0, size=120
+[   49865]UART1 Event : 0, size=120
+[   49866]UART1 Event : 0, size=120
+[   49867]UART1 Event : 0, size=120
+[   49869]UART1 Event : 0, size=120
+[   49870]UART1 Event : 0, size=120 
+[   49871]UART1 Event : 0, size=120
+[   49872]UART1 Event : 0, size=120
+[   49872]UART1 Event : 0, size=2
+[   49872] RX1 (pure dur=  101 us in Total= 8498 us), Times: 9, 0 in Q, size: 962 [2]1
+[   49874] RX1 Sensor completed = 7, [2]=1
+
+[   49874] TX1 go
+[   49876] TX1 (DUR=236 in 255 us) len = 10, { [2]  2, [7]  2 }
+[   49876] check permit 14 ms (last=49862) [7]2
+[   49877]UART1 Event : 1, size=2
+[   49877]UART1 Event : 1, size=2 ++++ ++++ ++++ ++++ ++++ ++++ ++++
+[   49877]UART1 Event : 0, size=14
+[   49881] size:14, RX1 Times: 10, 0 in Q, size: 976 [2]1 ++++ ++++ ++++ Overflows! ++++ ++++ ++++ ++++
+         Cur buffer) [0]   0 [1] 254 [2]   0 [3]   0 ~ [13]   0
+
+[   49882] RX1 Total=17579 us, Times: 10, 0 in Q, size: 976 [2]1 ++++ WRONG ++++
