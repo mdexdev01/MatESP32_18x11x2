@@ -169,7 +169,7 @@ int64_t wait_tx_done_async(int uart_num, int max_wait_duration_ms) {
 int tx0_count = 0;
 void sendPacket0(byte *packet_buffer, int packet_len) {
     int cur_time = millis();
-    uart0_printf("[%8d] TX0, go %dth \n", millis(), pump_count);
+    // uart0_printf("[%8d] TX0, go %dth \n", millis(), pump_count);
 
     uart_write_bytes(UART_NUM_0, packet_buffer, packet_len);  // 이거 non-blocking으로 바꿔야 함.
     uart0_printf("\n");
@@ -179,7 +179,7 @@ void sendPacket0(byte *packet_buffer, int packet_len) {
     if (time_dur_ms <= (tx_dur_us / 1000))
         uart0_printf("[%8d] TX0, Time Err %dus \n", millis(), tx_dur_us);
 
-    uart0_printf("[%8d] TX0, size= %d, dur=%d ms, %dth \n", millis(), packet_len, millis() - cur_time, pump_count);
+    // uart0_printf("[%8d] TX0, size= %d, dur=%d ms, %dth \n", millis(), packet_len, millis() - cur_time, pump_count);
     // printPacket(packet_buffer, packet_len);
 
     tx0_count++;
@@ -645,8 +645,8 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
             switch (rx_MSG_ID) {
                 case M_PERMIT:
                     parsePacket_Permit(rx_head, nullptr, MY_BOARD_ID, rs485Bus_granted);
-                    uart0_printf("[%8d] RX1 PERMIT (%d to %d)  [2]%3d \n", millis(),
-                                 rx_TX_BOARD_ID, rx_head[IDX_PERMIT_ID], rx_head[IDX_VER]);
+                    // uart0_printf("[%8d] RX1 PERMIT (%d to %d)  [2]%3d \n", millis(),
+                    //              rx_TX_BOARD_ID, rx_head[IDX_PERMIT_ID], rx_head[IDX_VER]);
 
                     indexPermit = rx_head[IDX_DATA_1];
                     break;
@@ -775,7 +775,7 @@ void pumpSerial(void *pParam) {
 
             // Send Sensor Data to UART0
             buildPacket_Sensor_1Set(MY_BOARD_ID, packetBuf, forceBuffer_rd, NUM_1SET_SEN_WIDTH, NUM_1SET_SEN_HEIGHT);
-            // sendPacket0(packetBuf, PACKET_LEN_SEN_1SET);  // it consumes 11ms per one board. so for 2, it consumes 22ms.
+            sendPacket0(packetBuf, PACKET_LEN_SEN_1SET);  // it consumes 11ms per one board. so for 2, it consumes 22ms.
 
             adc_scan_done = false;  // turn on loopADCRead, it will give sema to draw led task.
 
@@ -786,7 +786,7 @@ void pumpSerial(void *pParam) {
             }
             
             isBoard0_UART1_using = true;
-            uart0_printf("\nU\n");
+            uart0_printf("U");
 
             buildPacket_Sensor_1Bd(MY_BOARD_ID, packetBuf, forceBuffer_rd, SIZE_X, SIZE_Y);
             sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
