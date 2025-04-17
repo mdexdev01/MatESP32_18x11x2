@@ -104,6 +104,7 @@ void setup() {
     uart_param_config(UART_NUM_1, &uart_config_1);
     uart_set_pin(UART_NUM_1, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uart_driver_install(UART_NUM_1, SERIAL_SIZE_RX * 8, SERIAL_SIZE_TX, 20 * 10, &UART1_EventQueue, 0);  // 20 = queue_size, 0 = intr_alloc_flags
+    // ESP_ERROR_CHECK(uart_set_rx_full_threshold(UART_NUM_1, 60));
 
     // pinMode(RX_PIN, INPUT_PULLUP);  // RX pin pull up mode
 
@@ -311,9 +312,8 @@ long loop_count = 0;
 void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);  // loopADCRead() task 초입 딜레이
-        // adc_scan_done = true;
-        // continue;
 
+        /*
         //      CHECK if UART1 is currently used.
         if ((isBoard0_UART1_using == true) && (MY_BOARD_ID == 0)) {
             if (millis() - tick_permit_last < 1000) {
@@ -327,11 +327,14 @@ void loopADCRead(void *pvParameters) {
         if(adc_scan_done == true) {
             continue;
         }
+        */
 
         //-   SCAN
         int cur_ms = millis();
         uart0_printf("A");
         // uart0_printf("[%8d] adc start \n", millis());
+
+        // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
         {
             adcScan_DoubleBuf();  //  IT CONSUMES 48ms at least. And 66ms, with taskYIELD() in the function.
             taskYIELD();
@@ -348,18 +351,17 @@ void loopADCRead(void *pvParameters) {
                 MY_BOARD_ID = binDip4;
             }
         }
+        uart0_printf("a");
 
         //-  DRAW LED
         {
             draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
-            // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
         }
 
         if(MY_BOARD_ID == 0) {
             vTaskDelay(5);
         }
 
-        uart0_printf("a");
         adc_scan_done = true; //~~~ Trigger to send data to use UART0 and UART1.
 
         taskYIELD();
@@ -381,7 +383,7 @@ void loopDrawLED(void *pvParameters) {
     while (true) {
         //      DISABLE THIS TASK
         vTaskDelay(1);  // loopDrawLED() task 초입 딜레이이
-        // continue;
+        continue;
 
         if (xSemaphoreTake(semaForceBuf_rd, portMAX_DELAY) == pdTRUE) {
             //  DRAW LED ==> make this block to task on core 1. (Core1 : draw_ledObjects and adcScanMainPage)

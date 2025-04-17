@@ -371,9 +371,9 @@ void uart1_event_task(void *pvParameters) {
                     if (eventBuffer[event.size - 1] == TAIL_SYNC) {
                         queue_num = uxQueueMessagesWaiting(UART1_EventQueue);
                         // if ((currentRxBuffer[2] % 100 == 0) || (currentRxBuffer[2] % 100 == 1))
-                        // uart0_printf("[%8d] RX1 (USE %5lld us in DUR %5lld us), len=%d, 1~%d,%2dea in Q [2]%3d\n",
-                        //              millis(), one_packet_read_total_us_pure, one_packet_read_total_us,
-                        //              one_packet_len, one_packet_event_count, queue_num, currentRxBuffer[2]);
+                        uart0_printf("[%8d] RX1 (USE %5lld us in DUR %5lld us), len=%d, 1~%d,%2dea in Q [2]%3d\n",
+                                     millis(), one_packet_read_total_us_pure, one_packet_read_total_us,
+                                     one_packet_len, one_packet_event_count, queue_num, currentRxBuffer[2]);
 
                         // 온갖 테스트 코드
                         if(true)
@@ -401,7 +401,7 @@ void uart1_event_task(void *pvParameters) {
 
                         processRX1(currentRxBuffer, one_packet_len);  // 패킷 처리
                     } else {
-                        if (9 < one_packet_event_count) {  // 9  is the maximum number of events in one packet.
+                        if (17 < one_packet_event_count) {  // 9  is the maximum number of events in one packet.
                             uart0_printf("\n[%11lldus] RX1 Total=%5lld us, Times: %d, %d in Q, len: %d [2]%d ++++ WRONG ++++\n",
                                 esp_timer_get_time(), one_packet_read_total_us, one_packet_event_count, queue_num, one_packet_len, currentRxBuffer[2]);
                             // printBuf(currentRxBuffer + one_packet_len - event.size, event.size, one_packet_event_count);
