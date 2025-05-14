@@ -5,7 +5,6 @@
 #include "packetBuffer.h"
 
 int build_count = 0;
-extern int tick_permit_last;
 extern bool sendPacket1(byte *packet_buffer, int packet_len);
 
 void buildPacket_Sensor_1Set(int my_board_id, byte *tx_packet_buffer, byte *adc_buffer, int width, int height) {

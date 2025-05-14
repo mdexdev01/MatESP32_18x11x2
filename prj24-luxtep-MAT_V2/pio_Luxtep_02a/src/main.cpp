@@ -68,6 +68,7 @@ SemaphoreHandle_t semaForceBuf_rd;  // 세마포어 핸들 생성
 
 void loopADCRead(void *pvParameters);
 void loopDrawLED(void *pvParameters);
+void readDipSwitch();
 
 void setup() {
     // UART0 설정
@@ -104,7 +105,8 @@ void setup() {
     uart_param_config(UART_NUM_1, &uart_config_1);
     uart_set_pin(UART_NUM_1, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uart_driver_install(UART_NUM_1, SERIAL_SIZE_RX * 8, SERIAL_SIZE_TX, 20 * 10, &UART1_EventQueue, 0);  // 20 = queue_size, 0 = intr_alloc_flags
-    // ESP_ERROR_CHECK(uart_set_rx_full_threshold(UART_NUM_1, 60));
+    
+    uart_set_rx_full_threshold(UART_NUM_1, 64);
 
     // pinMode(RX_PIN, INPUT_PULLUP);  // RX pin pull up mode
 
@@ -258,11 +260,12 @@ void setup() {
                       "loopADCRead",  // 태스크 이름
                       1024 * 4 * 10,  // 스택 크기
                       NULL,           // 태스크 파라미터
-                      10,             // 태스크 우선순위
+                      10 + 0,             // 태스크 우선순위
                       NULL,           // 태스크 핸들
                       CORE_1)) {      // 실행될 코어 1
         uart0_printf("ERROR - TASK CREATES loopADCRead \n");
     }
+/*
     // LOOP 태스크 생성
     if (pdPASS != xTaskCreatePinnedToCore(
                       loopDrawLED,    // 태스크 함수
@@ -274,6 +277,7 @@ void setup() {
                       CORE_1)) {      // 실행될 코어 1
         uart0_printf("ERROR - TASK CREATES loopDrawLED \n");
     }
+*/
     // UART0 이벤트 처리 태스크 생성
     if (pdPASS != xTaskCreatePinnedToCore(
                       uart0_event_task,
@@ -301,7 +305,7 @@ void setup() {
 }
 
 void loop() {
-    vTaskDelay(1); // loop() task 초입 딜레이
+    vTaskDelay(1000); // loop() task 초입 딜레이
     return;
 }
 
@@ -309,63 +313,58 @@ void loop() {
 //  ADC SCAN TASK
 //---------------------------------------------
 long loop_count = 0;
+
 void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);  // loopADCRead() task 초입 딜레이
 
-        /*
         //      CHECK if UART1 is currently used.
-        if ((isBoard0_UART1_using == true) && (MY_BOARD_ID == 0)) {
-            if (millis() - tick_permit_last < 1000) {
-                vTaskDelay(1); // [loopADCRead] delay till isBoard0_UART1_using is set false.
+        if ((isBoard0_duringPermitCycle == true) && (MY_BOARD_ID == 0)) {
+            #define NO_PERMIT_ACK_WAIT 150
+            if (millis() - tickPermitLast < NO_PERMIT_ACK_WAIT) { // 데이터 에러로 인해 PERMIT의 ACK DATA를 받지 못함. 대개는 0번 보드 수신중에 BREAK 발생.
                 continue;
             }
-            uart0_printf("^");
-            isBoard0_UART1_using = false;
+            uart0_printf("No permit ack wait %d ms \n", NO_PERMIT_ACK_WAIT);
+            isBoard0_duringPermitCycle = false;
         }
 
-        if(adc_scan_done == true) {
+        if(isSensorDataFilled == true) 
             continue;
-        }
-        */
 
-        //-   SCAN
-        int cur_ms = millis();
-        uart0_printf("A");
-        // uart0_printf("[%8d] adc start \n", millis());
-
-        // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
+        //-   SCAN ADC
         {
+            uart0_printf("A");
+            int cur_ms = millis();
+            // uart0_printf("[%8d] adc start \n", millis());
+
             adcScan_DoubleBuf();  //  IT CONSUMES 48ms at least. And 66ms, with taskYIELD() in the function.
             taskYIELD();
 
-            fillADC2LED();                    // fill ledSrcBuf from forceBuffer_rd
-        }
-        // uart0_printf("[%8d] adc ends, dur = %d ms, ptr:%d \n", millis(), millis() - cur_ms, forceBuffer_wr_last);
+            fillADC2LED();        // fill ledSrcBuf from forceBuffer_rd
+            // uart0_printf("[%8d] adc ends, dur = %d ms, ptr:%d \n", millis(), millis() - cur_ms, forceBuffer_wr_last);
 
-        //-  CHECK BUTTONS
-        {
+            //-  CHECK HW BUTTONS
             loop_gpioWork();  // check buttons
-            if (loop_count % 20 == 0) {
-                read_dipsw(true);
-                MY_BOARD_ID = binDip4;
-            }
+            readDipSwitch();  // read dip switch
+            // checkOTAProc();   // check OTA
+    
+            uart0_printf("a");
         }
-        uart0_printf("a");
+        taskYIELD();
 
         //-  DRAW LED
-        {
-            draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+        if(isNoLEDMode == true){
+            isSensorDataFilled = true; //~~~ Trigger to send data to use UART0 and UART1. 이곳에 두면 85ms 추후 별개 과제로 추진. 
         }
-
-        if(MY_BOARD_ID == 0) {
-            vTaskDelay(5);
+        else{
+            draw_ledObjects();  // RMT transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
+            // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
+            isSensorDataFilled = true; //~~~ Trigger to send data to use UART0 and UART1. 이곳에 두면 115ms 추후 별개 과제로 추진. 
         }
-
-        adc_scan_done = true; //~~~ Trigger to send data to use UART0 and UART1.
 
         taskYIELD();
-        considerToPermit(120);
+        // To prevent TX1 inter board deadlock.
+        considerToPermit(190); 
 
         loop_count++;
 
@@ -373,6 +372,20 @@ void loopADCRead(void *pvParameters) {
     }
 
     return;
+}
+
+void readDipSwitch() {
+    if (loop_count % 100 == 0) { // read dip switch
+        read_dipsw(true);
+        MY_BOARD_ID = binDip4;
+        if(dip_state[4] == true){
+            BoardID_MAX = 7;
+        }
+        else{
+            // BoardID_MAX = 1;
+            BoardID_MAX = 7; // for test
+        }
+    }
 }
 
 //---------------------------------------------
@@ -383,15 +396,13 @@ void loopDrawLED(void *pvParameters) {
     while (true) {
         //      DISABLE THIS TASK
         vTaskDelay(1);  // loopDrawLED() task 초입 딜레이이
-        continue;
+        // continue;
 
         if (xSemaphoreTake(semaForceBuf_rd, portMAX_DELAY) == pdTRUE) {
             //  DRAW LED ==> make this block to task on core 1. (Core1 : draw_ledObjects and adcScanMainPage)
             {
                 int cur_ms = millis();
-                // uart0_printf("[%8d] led task draw start [ad]=%d, [4g]=%d, ptr = %d \n", cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
-                // draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
-                // uart0_printf("[%8d] led task draw end dur=%d ms, [ad]=%d, [4g]=%d, ptr = %d \n", millis(), millis() - cur_ms, adc_scan_done, rs485Bus_granted, forceBuffer_rd);
+                draw_ledObjects();  // dma transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
             }
 
             loop_led_count++;

@@ -301,17 +301,21 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     int row_index = mux_id * NUM_MUX_OUT + mux_ch;
     _vout_raw = _vref_raw =0;
 
-    taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
 
     // int64_t cur_snap = esp_timer_get_time();                               // 마이크로초 단위로 타이머 초기화
 
     VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut); // <========
+    ets_delay_us(2);
+    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     
     // int64_t duration_us = esp_timer_get_time() - cur_snap;
 
     // int64_t cur_snap2 = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
 
+    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     VRef_Value[col_index][row_index] = _vref_raw = adc1_get_raw(pinVRef); // <========
+    ets_delay_us(2);
+    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     
     // int64_t duration_us2 = esp_timer_get_time() - cur_snap2;
 
@@ -411,7 +415,6 @@ void readSenCh(int sen_ch) {
 }
 
 //	이거 PWR를 고정하고 센서를 움직이는데, 반대로 센서를 고정하고 PWR를 바꾸는 방식으로 수정해야 함.
-int adc_scan_done = false;
 int adc_scan_count_main = 0;
 void adcScan_DoubleBuf() {
     //  for ext mux id loop
@@ -468,7 +471,8 @@ int binDip4 = 0;
 int binDip2 = 0;
 
 #define VREF_DIP_HIGH 260  // Typically 297, 284, 287
-void read_dipsw(bool isLastRowConfigured) {
+// isLastRowConfigured : 딥스위치 측정은 먹스 설정이 되어있어야 하는데. 매트릭스 adc측정한 직후라면 설정이 되어있으므로 추가 gpio 세팅 필요없음.
+void read_dipsw(bool isLastRowConfigured) { 
     // choose mux_sen #4, ch34~39
     int dip_val[NUM_OF_DIP];
 

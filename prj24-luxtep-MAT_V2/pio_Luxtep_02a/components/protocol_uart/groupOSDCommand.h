@@ -2,6 +2,7 @@
 #define _GROUP_LED_COMMAND_H_
 
 #include "packetBuffer.h"
+#include "lib_ledWorks_28x35.h"
 
 extern byte *pMyOSDBuf;
 
@@ -12,30 +13,87 @@ extern int indi_1_b;
 extern void printUart1(const char *fmt, ...);
 extern bool sendPacket1(byte *packet_buffer, int packet_len);
 
+int osd_test_count = 0;
+
+
 void copyPacketToOSDBuf(int my_board_id, byte *rx_packet_header, byte *rx_packet_body) {
     int msg_id = rx_packet_header[IDX_MSG_ID];
     int osd_buf_id = (msg_id & 0xF0) >> 4;
 
-    osd_start_x = rx_packet_body[IDX_OSD_START_X];
-    osd_start_y = rx_packet_body[IDX_OSD_START_Y];
-    osd_width = rx_packet_body[IDX_OSD_WIDTH];
-    osd_height = rx_packet_body[IDX_OSD_HEIGHT];
+    OSD_START_X = rx_packet_body[IDX_OSD_START_X];
+    OSD_START_Y = rx_packet_body[IDX_OSD_START_Y];
+    OSD_WIDTH = rx_packet_body[IDX_OSD_WIDTH];
+    OSD_HEIGHT = rx_packet_body[IDX_OSD_HEIGHT];
 
     //  FILL packet to the OSD buffer
-    int packet_offset = SUB_HEAD_LEN;
+    byte * packet_osd_data = rx_packet_body + SUB_HEAD_LEN;
 
-    memset(pMyOSDBuf, 0, PACKET_LEN_OSD_BODY);
 
-    for (int y = osd_start_y; y < (osd_start_y + osd_height); y++) {
-        for (int x = osd_start_x; x < (osd_start_x + osd_width); x++) {
-            int index = y * SIZE_X + x;
+    memset(pMyOSDBuf, 0xEF, PACKET_LEN_OSD_BODY);  // clear the packet buffer
 
-            pMyOSDBuf[index] = rx_packet_body[packet_offset++];  // if OSD Buffer is multiple, must see the index.
-        }
+    int data_offset = 0;
+    for (int y = OSD_START_Y; y < (OSD_START_Y + OSD_HEIGHT); y++) {
+        int led_index = y * NUM_OSD_1Bd_WIDTH + OSD_START_X;
+
+        memcpy(pMyOSDBuf + led_index, packet_osd_data + data_offset, OSD_WIDTH);
+        data_offset += OSD_WIDTH;
     }
+    uart0_printf("o");
+
+    printUart1("#Copy OSD x=%d, y=%d, w=%d, h=%d\n", OSD_START_X, OSD_START_Y, OSD_WIDTH, OSD_HEIGHT);
+
+    osd_test_count++;
 
     return;
 }
+
+void buildPacket_OSD_1Bd(int my_board_id, byte *osd_packet_buffer, int start_x, int start_y, int width, int height) {
+    int header_len = 8;
+    int sub_header_len = 8;
+    int tail_len = 2;
+    int data_len = width * height;
+    int packet_body_len = sub_header_len + data_len + tail_len;  
+    
+    osd_packet_buffer[IDX_HEADER_0] = HEADER_SYNC;     // 0xFF
+    osd_packet_buffer[IDX_HEADER_1] = HEADER_SYNC;     // 0xFF
+    osd_packet_buffer[IDX_VER] = osd_test_count % 200;                 // Major Ver OR debugging index
+    osd_packet_buffer[IDX_TX_BOARD_ID] = 0;  // BOARD ID contained in this PACKET, M_BOARD_ALL = 8
+
+    osd_packet_buffer[IDX_GROUP_ID] = G_OSD_COMMAND;  // GROUP ID
+    osd_packet_buffer[IDX_MSG_ID] = (0 << 4) | 0;      // MSG ID, osd_id << 4 | rx_board_id 
+    osd_packet_buffer[IDX_LENGTH_100] = packet_body_len / 100;           // height = 34
+    osd_packet_buffer[IDX_LENGTH_0] = packet_body_len % 100;             // width = 56
+
+    osd_packet_buffer[header_len + IDX_OSD_START_X] = start_x;
+    osd_packet_buffer[header_len + IDX_OSD_START_Y] = start_y;
+    osd_packet_buffer[header_len + IDX_OSD_WIDTH] = width;
+    osd_packet_buffer[header_len + IDX_OSD_HEIGHT] = height;
+
+    osd_packet_buffer[12] = -17; // duration, 100ms. Doesn't work yet
+    osd_packet_buffer[13] = 100; // brightness. Doesn't work yet
+    osd_packet_buffer[14] = 0; // res 0
+    osd_packet_buffer[15] = 0; // res 1
+
+    int pa_index = header_len + sub_header_len;  // 8 + 8 = 16
+    byte * packet_osd_data = osd_packet_buffer + pa_index;
+
+    // memset(packet_osd_data + width * 24, 10, width * 10);  // clear the packet buffer
+
+    for (int y = 0 ; y < height ; y++) {
+        int data_offset = y * width;
+        int color_val = 12 + y * 2;
+
+        //  packet offset : 0, 1, 2, 
+        //  osd coordinate : start_x, start_x + 1, start_x + 2
+        memset(packet_osd_data + data_offset, color_val, width);
+    }
+    pa_index += width * height;
+
+    osd_packet_buffer[pa_index++] = 0;          //  Reserved 2
+    osd_packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
+
+}
+
 
 int parsePacket_OSD_byMain(int my_board_id, byte *rx_packet_header, byte *rx_packet_body, bool &is_osd_to_send) {
     //---------------------------------------
@@ -55,52 +113,30 @@ int parsePacket_OSD_byMain(int my_board_id, byte *rx_packet_header, byte *rx_pac
     int to_read = body_len;
     int read_len = 0;
 
-    //  header:8 + subheader:8 + body:980(35x28) + tail:2 = 998
-    //  to_read = 990 (after header)
-
-    int lap_enter = millis();
-    while (true) {
-        // reading. timeout : 0 ==> Asnync reading. Return instantly.  OS_500ms, portMAX_DELAY
-        read_len += uart_read_bytes(UART_NUM_0, (rx_packet_body + HEAD_LEN) + read_len, to_read - read_len, 0);
-        // read_len += uart_read_bytes(UART_NUM_0, (rx_packet_body + HEAD_LEN) + read_len, to_read - read_len, portMAX_DELAY);
-
-        if (read_len == to_read)
-            break;
-        if (1000 < (millis() - lap_enter))  // if over 1000ms, escape
-            return -1;
-        // break;
-        vTaskDelay(1);
-    }
-
-    if (read_len < to_read) {
-        printUart1("[%8d] > ERROR RX0 read shortly, %d/%d \n", millis(), read_len, to_read);
-        return -1;
-    }
-
-    if (rx_packet_body[to_read + HEAD_LEN - 1] != TAIL_SYNC) {
-        printUart1("> ERR 994 : %3d, %3d, %3d, %3d\n",
-                   //    rx_packet_body[to_read + HEAD_LEN - 2], rx_packet_body[to_read + HEAD_LEN - 1]);
-                   rx_packet_body[994], rx_packet_body[995], rx_packet_body[996], rx_packet_body[997]);
-        return -10;
-    }
+    // uart0_printf("Main parse OSD Bd=%d, Len=%d.\n", rx_board_id, body_len);
+    // printUart1("#Main parse OSD Bd=%d, Len=%d, [-1]=%d (w=%d,h=%d)\n", rx_board_id, body_len, 
+    //             rx_packet_body[body_len - 1],
+    //             rx_packet_body[IDX_OSD_WIDTH], rx_packet_body[IDX_OSD_HEIGHT]);
 
     //---------------------------------------
     // 3단계: 보관 - 전송 혹은 보관
 
     //  send this packet to rx_board_id ----------------------------------
     if (my_board_id != rx_board_id) {
-        //  copy header
-        memcpy(rx_packet_body, rx_packet_header, HEAD_LEN);  // body_len
+        // memcpy(rx_packet_body, rx_packet_header, HEAD_LEN);  // body_len
+
+        //  packet is already at packetBuf_OSDSub
 
         is_osd_to_send = true;
         // sendPacket1(rx_packet_body, PACKET_LEN_OSD);
 
     } else {
-        copyPacketToOSDBuf(my_board_id, rx_packet_header, (rx_packet_body + HEAD_LEN));
+        copyPacketToOSDBuf(my_board_id, rx_packet_header, rx_packet_body);
     }
 
     return 0;
 }
+
 
 int parsePacket_OSD_bySub(int my_board_id, byte *rx_packet_header, byte *rx_packet_body) {
     //---------------------------------------
@@ -120,38 +156,14 @@ int parsePacket_OSD_bySub(int my_board_id, byte *rx_packet_header, byte *rx_pack
     int to_read = body_len;
     int read_len = 0;
 
-    //  header:8 + subheader:8 + body:980(35x28) + tail:2 = 998
-    //  to_read = 990 (after header)
-
-    int lap_enter = millis();
-    while (true) {
-        // reading. timeout : 0 ==> Asnync reading. Return instantly.  OS_500ms, portMAX_DELAY
-        read_len += uart_read_bytes(UART_NUM_1, (rx_packet_body + HEAD_LEN) + read_len, to_read - read_len, 0);
-        if (read_len == to_read)
-            break;
-        if (1000 < (millis() - lap_enter))  // if over 1000ms, escape
-            break;
-        vTaskDelay(1);
-    }
-
-    if (read_len < to_read) {
-        uart0_printf("[%8d] RX1 OSD has read shortly, len = %d, to read = %d \n", millis(), read_len, to_read);
-        return -1;
-    }
-
-    if (rx_packet_body[to_read + HEAD_LEN - 1] != TAIL_SYNC) {
-        uart0_printf("[%8d] ERROR\t RX OSD ends with ~ %d, %d \n", millis(),
-                     rx_packet_body[to_read - 2], rx_packet_body[to_read - 1]);
-        return -2;
-    }
-
-    if (my_board_id != rx_board_id) {
-        return -10;
-    }
+    
+    // if (my_board_id != rx_board_id) {
+    //     return -10;
+    // }
 
     //---------------------------------------
     // 3단계: 서브 헤더 파싱
-    copyPacketToOSDBuf(my_board_id, rx_packet_header, (rx_packet_body + HEAD_LEN));
+    copyPacketToOSDBuf(my_board_id, rx_packet_header, (rx_packet_body));
 
     return 0;
 }

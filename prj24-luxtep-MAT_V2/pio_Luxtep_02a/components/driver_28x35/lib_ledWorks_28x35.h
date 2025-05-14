@@ -13,13 +13,10 @@
 
 #define NUM_strip 4
 #define NUM_LEDS 252
-
-// Declare our NeoPixel strip object:
-const gpio_num_t led_gpio_pins[4] = {
-    static_cast<gpio_num_t>(8),
-    static_cast<gpio_num_t>(21),
-    static_cast<gpio_num_t>(14),
-    static_cast<gpio_num_t>(13)};
+//---------------------------------------------
+//  Protocol - OSD 1 Board
+#define NUM_LED_1Bd_WIDTH 28
+#define NUM_LED_1Bd_HEIGHT 35
 
 NeoPixelBus<NeoGrbFeature, NeoEsp32LcdX8Ws2812xMethod> strip[NUM_strip] = {
     // {NUM_LEDS, 47},
@@ -29,13 +26,17 @@ NeoPixelBus<NeoGrbFeature, NeoEsp32LcdX8Ws2812xMethod> strip[NUM_strip] = {
     {226, 13}};
 
 //  LED Buffer
-#define NUM_LED_IN_1_BOARD SIZE_X *(SIZE_Y + 1)
+#define NUM_LED_IN_1_BOARD (NUM_LED_1Bd_WIDTH * NUM_LED_1Bd_HEIGHT)
 byte ledSrcBuf[NUM_LED_IN_1_BOARD];   // interpolation buffer
+
 byte ledBlurBuf[NUM_LED_IN_1_BOARD];  // interpolation buffer
+byte ledBlurBuf_Stored[NUM_LED_IN_1_BOARD];  // interpolation buffer
 
 //  OSD Buffer
 byte osdBuffer[NUM_LED_IN_1_BOARD];
 byte *pMyOSDBuf;
+
+bool isNoLEDMode = false;  // true : no LED, false : LED
 
 void readForce();
 void interpolateForce();
@@ -43,8 +44,9 @@ void drawIndicator();
 void drawPixels();
 
 void setup_LEDBuffers() {
-    memset(ledBlurBuf, 0, NUM_LED_IN_1_BOARD);
     memset(ledSrcBuf, 0, NUM_LED_IN_1_BOARD);
+    memset(ledBlurBuf, 0, NUM_LED_IN_1_BOARD);
+    memset(ledBlurBuf_Stored, 0, NUM_LED_IN_1_BOARD);
 
     memset(osdBuffer, 0, NUM_LED_IN_1_BOARD);
     pMyOSDBuf = osdBuffer;
@@ -54,7 +56,28 @@ int read_count = 0;
 // fill the ledSrcBuf[NUM_LED_IN_1_BOARD] from the forceBuffer_rd[SIZE_X * SIZE_Y]
 void fillADC2LED() {
     memcpy(ledSrcBuf, forceBuffer_rd, SIZE_X * SIZE_Y);
-    memcpy(ledSrcBuf + SIZE_X * SIZE_Y, forceBuffer_rd - SIZE_X, SIZE_X);
+    memcpy(ledSrcBuf + SIZE_X * SIZE_Y, forceBuffer_rd - SIZE_X, SIZE_X); // LED 맨 윗줄
+
+    int cell_index = 0;
+    int led_index_south = 0;
+    int led_index_north = 0;
+
+    memset(ledBlurBuf, 0, NUM_LED_IN_1_BOARD);
+
+    for (int y = 0; y < NUM_LED_1Bd_HEIGHT - 1; y++) {
+        for (int x = 0; x < NUM_LED_1Bd_WIDTH; x++) {
+            cell_index = NUM_LED_1Bd_WIDTH * y + x;
+
+            led_index_south = cell_index;
+            led_index_north = NUM_LED_1Bd_WIDTH * (y + 1) + x;
+
+            if (ledSrcBuf[cell_index] == 0)
+                continue;
+                
+            ledBlurBuf[led_index_south] = ledSrcBuf[cell_index];
+            ledBlurBuf[led_index_north] = ledSrcBuf[cell_index];
+        }
+    }
 
     read_count++;
 }
@@ -143,20 +166,25 @@ void drawPixels() {
 
     byte r, g, b;
 
-    for (int y = 0; y < SIZE_Y + 1; y++) {
-        for (int x = 0; x < SIZE_X; x++) {
-            int led_index = y * SIZE_X + x;
+    for (int y = 0 ; y < NUM_LED_1Bd_HEIGHT ; y++) {
+        for (int x = 0 ; x < NUM_LED_1Bd_WIDTH ; x++) {
+            int led_index = y * NUM_LED_1Bd_WIDTH + x;
 
-            //  check if OSD1 area
-            bool has_osd_to_draw = false;
-            if ((osd_start_y <= y) && (y < osd_start_y + osd_height)) {
-                if ((osd_start_x <= x) && (x < osd_start_x + osd_width)) {
-                    has_osd_to_draw = true;
+            //  Check if this pixel is in OSD1 area.
+            bool has_osd_pixel = false;
+            if ((OSD_START_Y <= y) && (y < OSD_START_Y + OSD_HEIGHT)) {
+                if ((OSD_START_X <= x) && (x < OSD_START_X + OSD_WIDTH)) {
+                    has_osd_pixel = true;
                 }
             }
 
+            // if(draw_count % 10 == 0) {
+                // pMyOSDBuf[led_index] = x + 10;  // color
+            // }
+            // has_osd_pixel = true;
+            
             //  Draw OSD1
-            if ((has_osd_to_draw == true) && (pMyOSDBuf[led_index] != 0xEF)) {
+            if ((has_osd_pixel == true) && (pMyOSDBuf[led_index] != 0xEF)) {
                 rgb_8to24(pMyOSDBuf[led_index], r, g, b);  // convert 8bit to 24bit
                 setLedColor(x, y, r, g, b);
                 // uart0_printf("[x=%d, y=%d] rgb = %d, r=%d, g=%d, b=%d \n", x, y, pMyOSDBuf[index], r, g, b);  // convert 8bit to 24bit
@@ -178,10 +206,12 @@ void drawPixels() {
         // uart0_printf("[%8d]strip[%d].Show(); \n", millis(), g);
         strip[g].Show();
 
-        for (int i = 0; i < 7; i++) {
+        ets_delay_us(3);
+    }
+
+        for (int i = 0; i < 7 + 1; i++) {
             vTaskDelay(1);
         }
-    }
 
     draw_count++;
 }
@@ -199,11 +229,9 @@ int blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delt
     if ((width <= (x + delta_x)) || (height <= (y + delta_y)))
         return -1;
 
-    int cell_index = 0;
+    int cell_index = SIZE_X * (y + delta_y) + (x + delta_x);
 
-    cell_index = SIZE_X * (y + delta_y) + (x + delta_x);
-
-    if (0 < ledSrcBuf[cell_index])
+    if (0 < ledSrcBuf[cell_index]) // ==> 연출 LED위치에 측정값이 있는 경우는 연출 안함.
         return -1;
 
     /*
@@ -211,7 +239,7 @@ int blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delt
                             [North cell]
 
         north west          my LED              north east
-        [West cell]         [This cell]         [East cell]
+        [West cell]         [Center cell]       [East cell]
         south west          my LED              south east
 
                             [South cell]
@@ -224,30 +252,29 @@ int blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delt
         * south LED
 
     */
+    int center_index = SIZE_X * y + x;
+
     int led_index_south = 0;
     int led_index_north = 0;
 
     led_index_south = SIZE_X * (y + delta_y) + (x + delta_x);
     led_index_north = SIZE_X * (y + delta_y + 1) + (x + delta_x);
 
-    int center_index = 0;
-    center_index = SIZE_X * y + x;
-
     int blur_value = ledSrcBuf[center_index] >> 0;
 
     if (delta_x == -1) {
-        ledBlurBuf[led_index_north] = blur_value;  // rd
-        ledBlurBuf[led_index_south] = blur_value;  // rd
+        ledBlurBuf[led_index_north] = blur_value;
+        ledBlurBuf[led_index_south] = blur_value;
     } else if (delta_x == 1) {
-        ledBlurBuf[led_index_north] = blur_value;  // rd
-        ledBlurBuf[led_index_south] = blur_value;  // rd
+        ledBlurBuf[led_index_north] = blur_value;
+        ledBlurBuf[led_index_south] = blur_value;
     } else if (delta_x == 0) {
         switch (delta_y) {
             case -1:
-                ledBlurBuf[led_index_south] = blur_value;  // rd
+                ledBlurBuf[led_index_south] = blur_value;
                 break;
             case 1:
-                ledBlurBuf[led_index_north] = blur_value;  // rd
+                ledBlurBuf[led_index_north] = blur_value;
                 break;
         }
     }
@@ -270,13 +297,13 @@ void blurObjectOutline() {
 
             //  influencing to the neighbor cells of force buffer value.
             // blurLEDwithADCPos(int width, int x, int delta_x, int height, int y, int delta_y);
-            blurLEDwithADCPos(SIZE_X, x, -1, SIZE_Y, y, 0);
-
-            blurLEDwithADCPos(SIZE_X, x, 0, SIZE_Y, y, -1);
-            // blurLEDwithADCPos(SIZE_X, x,  0, SIZE_Y, y,  0);
-            blurLEDwithADCPos(SIZE_X, x, 0, SIZE_Y, y, 1);
+            blurLEDwithADCPos(SIZE_X, x,-1, SIZE_Y, y, 0);
 
             blurLEDwithADCPos(SIZE_X, x, 1, SIZE_Y, y, 0);
+
+            blurLEDwithADCPos(SIZE_X, x, 0, SIZE_Y, y,-1);
+            
+            blurLEDwithADCPos(SIZE_X, x, 0, SIZE_Y, y, 1);
 
             taskYIELD();
         }
@@ -286,9 +313,8 @@ void blurObjectOutline() {
 void draw_ledObjects() {
     uart0_printf("L");
 
-    memset(ledBlurBuf, 0, NUM_LED_IN_1_BOARD);
-
-    blurObjectOutline();  // blur outline, 46us~48us typically. And 259, 100us exceptioanlly.
+    if(TactButtons[0]->numberKeyPressed % 2 == 0)
+        blurObjectOutline();  // blur outline, 46us~48us typically. And 259, 100us exceptioanlly.
 
     taskYIELD();
     // int64_t cur_snap = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
@@ -302,8 +328,15 @@ void draw_ledObjects() {
 
     drawIndicator();
 
+    if(TactButtons[1]->numberKeyPressed % 2 == 0)
+        memcpy(ledBlurBuf_Stored, ledBlurBuf, NUM_LED_IN_1_BOARD);
+    else {
+        memcpy(ledBlurBuf, ledBlurBuf_Stored, NUM_LED_IN_1_BOARD);
+    }
+
     drawPixels();  // 픽셀 그려주는 작업
     uart0_printf("l");
+
 }
 
 #endif  // _LIB_LEDWORKS_28x35_H_

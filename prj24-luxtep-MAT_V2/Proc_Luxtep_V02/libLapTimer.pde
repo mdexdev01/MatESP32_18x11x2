@@ -13,7 +13,7 @@ class LapTimer {
     LapTimer(String nick) {
         timerMine = new ControlTimer();
         timerMine.setSpeedOfTime(1); // 1 : 1ms
-        timeOrigin_ms = timerMine.time(); //<>// //<>// //<>//
+        timeOrigin_ms = timerMine.time(); //<>// //<>// //<>// //<>//
         
         nickName = nick;
 
@@ -25,11 +25,11 @@ class LapTimer {
     }
 
     void reset() {
-        timeOrigin_ms = timerMine.time(); //<>// //<>// //<>//
+        timeOrigin_ms = timerMine.time(); //<>// //<>// //<>// //<>//
     }
 
     long getElapsed_ms() {
-        return (timerMine.time() - timeOrigin_ms); //<>// //<>// //<>//
+        return (timerMine.time() - timeOrigin_ms); //<>// //<>// //<>// //<>//
     }
 
     //-----------------------------------------------------
@@ -42,7 +42,7 @@ class LapTimer {
     void cycleStart(long interval_ms) {
         cycleInterval_ms = interval_ms;
         cycleCheckedOutLast = 0;
-        cycleTimerOrigin = timerMine.time(); //<>// //<>// //<>//
+        cycleTimerOrigin = timerMine.time(); //<>// //<>// //<>// //<>//
     }
 
     /**

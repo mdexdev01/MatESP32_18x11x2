@@ -55,7 +55,10 @@ typedef enum {
 
 //---------------------------------------------
 //  Protocol - OSD 1 Board
-#define PACKET_LEN_OSD_BODY (NUM_1Bd_WIDTH * (NUM_1Bd_HEIGHT + 1))
+#define NUM_OSD_1Bd_WIDTH 28
+#define NUM_OSD_1Bd_HEIGHT 35
+
+#define PACKET_LEN_OSD_BODY (NUM_OSD_1Bd_WIDTH * NUM_OSD_1Bd_HEIGHT)
 #define PACKET_LEN_OSD (HEAD_LEN + SUB_HEAD_LEN + PACKET_LEN_OSD_BODY + TAIL_LEN)
 
 //////////////////////////////////////////////////////////////

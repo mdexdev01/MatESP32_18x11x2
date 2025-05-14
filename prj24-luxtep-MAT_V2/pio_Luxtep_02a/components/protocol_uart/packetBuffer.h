@@ -40,11 +40,14 @@ bool bookOSD_toSend[NUM_BOARD][NUM_OSD_BUF];
 
 byte packetBuf_OSD[PACKET_LEN_OSD];
 byte packetBuf_OSDSub[PACKET_LEN_OSD];
+bool isSubOSD_Filled = false;
 
-int osd_start_x = 0;
-int osd_start_y = 0;
-int osd_width = 0;
-int osd_height = 0;
+int packetOSD_SizeSub = 0;
+
+int OSD_START_X = 0;
+int OSD_START_Y = 0;
+int OSD_WIDTH = 0;
+int OSD_HEIGHT = 0;
 
 //---------------------------------------------
 //	FUNCTION DECLARATION
@@ -172,6 +175,8 @@ void printPacketOSDSubHeader(byte *rx_subhead) {
                  rx_subhead[0], rx_subhead[1], rx_subhead[2], rx_subhead[3],
                  rx_subhead[4], rx_subhead[5], rx_subhead[6], rx_subhead[7]);
 }
+
+extern int adc_scan_count_main;
 
 void printPacket(byte *packet_buffer, int packet_len) {
     //  log all data.

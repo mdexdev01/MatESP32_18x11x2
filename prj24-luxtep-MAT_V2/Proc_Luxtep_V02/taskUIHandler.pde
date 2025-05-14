@@ -282,10 +282,10 @@ void controlEvent(CallbackEvent event) {
         break;
       case "/tagSEND":
         println("Send data");
-        for(int j = 0 ; j < 1 ; j++) {
+        for(int j = 0 ; j < 20 ; j++) {
           test_OSD();
           tx_count++;
-          delay(150);
+          delay(100);
           //if( (tx_count % 2) == 0)
           //  delay(40);
         }
@@ -298,99 +298,83 @@ void controlEvent(CallbackEvent event) {
 byte[] packetOSD = new byte[8*56*(34+1)];
 
 void test_OSD() {
-  int osd_start_x = 0;// + (tx_count % 20);
-  int osd_start_y = 0;// + (tx_count % 30);
-  int osd_width = 28; // max : 28
-  int osd_height = 35; // max : 35
-
   int packet_head_len = 16;
   int packet_tail_len = 2;
-  int osd_size = 0;
-  int packet_size = 0;
   
-  
-  if( (tx_count % 5 == 1)||(tx_count % 5 == 2) ) {
-    //osd_start_y = 3;
-    //osd_height= 15;
-  }
-  osd_size = osd_width * osd_height;
-  packet_size = packet_head_len + osd_size + packet_tail_len;
-  
-  byte [] osd_data = new byte[packet_size];
-  
-  int index = packet_head_len;
-  
-  for(int y = 0 ; y < osd_height ; y++) {
-    for(int x = 0 ; x < osd_width ; x++) {
-      int offset = packet_head_len + y * osd_width + x;
-      osd_data[index] = byte((100 + tx_count * 15) % 216);
-      
-      if( (2 < x) && (x < 26) ) {
-        osd_data[index] = -17;//0xEF; Transparent
-      }
-      //if( (17 < x) && (17 < x) ) {
-      //  osd_data[index] = -17;//0xEF; Transparent
-      //}
-      
-      if(((tx_count % 8) == 6) || ((tx_count % 8) == 7)) {
-        //osd_data[index] = -17;//0xEF; Transparent
-      }
-      index++;
-    }
-  }
-  
-  buildOSDPacket(osd_data, osd_start_x, osd_start_y, osd_width, osd_height);
-  //  send to uart
+  int osd_start_x = 0 + (tx_count % 16);
+  int osd_start_y = 0 + (tx_count % 27);
+  int osd_width = 12;//6; // max : 28
+  int osd_height = 8;//12; // max : 35
 
+  int packet_max_size = packet_head_len + osd_width * osd_height + packet_tail_len;
+
+  byte [] osd_packet = new byte[packet_max_size];
+
+  buildOSDPacket(osd_packet, osd_start_x, osd_start_y, osd_width, osd_height);
+  
+  //  send to uart
   //for(int i = 0 ; i < (packet_head_len + osd_size) ; i++) {
-    myPort.write(osd_data); // read 1 whole buffer.
+    myPort.write(osd_packet); // read 1 whole buffer.
   //}
-  println("res0= " + osd_data[packet_size - 2]);
 
 }
 
-void buildOSDPacket(byte [] data, int start_x, int start_y, int osd_width, int osd_height) {
+void buildOSDPacket(byte [] packetBuf, int start_x, int start_y, int osd_width, int osd_height) {
   int header_len = 8;
   int sub_header_len = 8;
   int tail_len = 2;
   int data_len = osd_width * osd_height;
   int packet_body_len = sub_header_len + data_len + tail_len;  
   
-  data[0] = -1; // 0xFF
-  data[1] = -1; // 0xFF
-  data[2] = byte(tx_count % 100); // version major
-  data[3] = 9; // tx board id
+  packetBuf[0] = -1; // 0xFF
+  packetBuf[1] = -1; // 0xFF
+  packetBuf[2] = byte(tx_count % 100); // version major
+  packetBuf[3] = 0; // tx board id  ㅑㅜㄴㅇ
   
-  data[4] = 3; // group id, 3:G_OSD_COMMAND
-  data[5] = byte(tx_count % 2); // rx osd id, 0: board 0, 1: board 1
-  data[6] = byte(packet_body_len / 100); // data len, over 100
-  data[7] = byte(packet_body_len % 100); // data len, under 100
+  packetBuf[4] = 3; // group id, 3:G_OSD_COMMAND
   
-  data[8] = (byte)start_x;
-  data[9] = (byte)start_y;
-  data[10] = (byte)osd_width;
-  data[11] = (byte)osd_height;
-  data[12] = -17; // duration, 100ms. Doesn't work yet
-  data[13] = 100; // brightness. Doesn't work yet
-  data[14] = 0; // res 0
-  data[15] = 0; // res 1
+  byte rx_board_id = byte(tx_count % 2);
+  //  [5] : (osd_id << 4) | rx_board_id 
+  //data[5] = byte((0 << 4) | (tx_count % 2)); // rx osd id, 0: board 0, 1: board 1
+  packetBuf[5] = byte((0 << 4) | rx_board_id); // rx osd id, 0: board 0, 1: board 1
+  
+  packetBuf[6] = byte(packet_body_len / 100); // data len, over 100
+  packetBuf[7] = byte(packet_body_len % 100); // data len, under 100
+  
+  packetBuf[8] = (byte)start_x;
+  packetBuf[9] = (byte)start_y;
+  packetBuf[10] = (byte)osd_width;
+  packetBuf[11] = (byte)osd_height;
+  packetBuf[12] = -17; // duration, 100ms. Doesn't work yet
+  packetBuf[13] = 100; // brightness. Doesn't work yet
+  packetBuf[14] = 0; // res 0
+  packetBuf[15] = 0; // res 1
 
   
   //int offset = header_len + sub_header_len;
   //int number = 0;
-  //while(true) {
-  //  data[offset] = byte((number % 100) + (number / 100));
+  int index = header_len + sub_header_len;
 
-  //  if(number == data_len)
-  //    break;
+  for(int y = 0 ; y < osd_height ; y++) {
+    for(int x = 0 ; x < osd_width ; x++) {
+      int position = header_len + sub_header_len + y * osd_width + x;
+
+      packetBuf[index] = byte(5+x + tx_count % 80) ;//0xEF; Transparent
+
+      //if( (17 < x) && (17 < x) ) {
+      //  packetBuf[index] = -17;//0xEF; Transparent
+      //}
       
-  //  offset++;
-  //  number++;
-  //}
-  //System.arraycopy(data, 0, packetOSD, header_len, osd_width * osd_height);
+      //if(((tx_count % 8) == 6) || ((tx_count % 8) == 7)) {
+      //  packetBuf[index] = -17;//0xEF; Transparent
+      //}
+      
+      index++;
+    }
+  }
   
-  data[header_len + sub_header_len + data_len] = byte(tx_count % 100);
-  data[header_len + sub_header_len + data_len + 1] = -2; // 0xFE
+  packetBuf[header_len + sub_header_len + data_len] = byte(tx_count % 100);
+  packetBuf[header_len + sub_header_len + data_len + 1] = -2; // 0xFE
 
 }
 
