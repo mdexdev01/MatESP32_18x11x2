@@ -311,7 +311,7 @@ void blurObjectOutline() {
 }
 
 void draw_ledObjects() {
-    uart0_printf("L");
+    // uart0_printf("L");
 
     if(TactButtons[0]->numberKeyPressed % 2 == 0)
         blurObjectOutline();  // blur outline, 46us~48us typically. And 259, 100us exceptioanlly.
@@ -335,7 +335,7 @@ void draw_ledObjects() {
     }
 
     drawPixels();  // 픽셀 그려주는 작업
-    uart0_printf("l");
+    // uart0_printf("l");
 
 }
 

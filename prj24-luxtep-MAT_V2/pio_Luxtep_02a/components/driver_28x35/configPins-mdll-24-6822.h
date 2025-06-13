@@ -305,8 +305,8 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
     // int64_t cur_snap = esp_timer_get_time();                               // 마이크로초 단위로 타이머 초기화
 
     VOut_Value[col_index][row_index] = _vout_raw = adc1_get_raw(pinVOut); // <========
-    ets_delay_us(2);
-    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
+    ets_delay_us(20);
+    taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     
     // int64_t duration_us = esp_timer_get_time() - cur_snap;
 
@@ -314,8 +314,8 @@ int readAndCalc(int col_index, int mux_id, int mux_ch, int pin_signal) {
 
     // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     VRef_Value[col_index][row_index] = _vref_raw = adc1_get_raw(pinVRef); // <========
-    ets_delay_us(2);
-    // taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
+    ets_delay_us(20);
+    taskYIELD();  // ==> taskYIELD() ==> 1ea: 55 ms (18fps), 2ea: 59 ms (16fps), 3ea: 63 ms (15fps)
     
     // int64_t duration_us2 = esp_timer_get_time() - cur_snap2;
 
@@ -483,17 +483,17 @@ void read_dipsw(bool isLastRowConfigured) {
     //  _vref_raw : low is under 150 (typically 135), high is over 500 (typically 522)
 
     readSenCh(36);
-    dip_val[0] = _vref_raw;
+    dip_val[0] = _vref_raw; // BOARD ID BIT 0, 0/1
     readSenCh(37);
-    dip_val[1] = _vref_raw;
+    dip_val[1] = _vref_raw; // BOARD ID BIT 1, 0/2
     readSenCh(38);
-    dip_val[2] = _vref_raw;
+    dip_val[2] = _vref_raw; // BOARD ID BIT 2, 0/4
     readSenCh(39);
-    dip_val[3] = _vref_raw;
+    dip_val[3] = _vref_raw; // BOARD ID BIT 3, 0/8
     readSenCh(34);
-    dip_val[4] = _vref_raw;
+    dip_val[4] = _vref_raw; // LOW : WIFI, HIGH : SERIAL
     readSenCh(35);
-    dip_val[5] = _vref_raw;
+    dip_val[5] = _vref_raw; // LOW : BoardID_MAX = 1,  HIGH : BoardID_MAX = 7
 
     for (int i = 0; i < NUM_OF_DIP; i++) {
         if (VREF_DIP_HIGH < dip_val[i])
@@ -503,6 +503,9 @@ void read_dipsw(bool isLastRowConfigured) {
     }
     // uart0_printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_val[0], dip_val[1], dip_val[2], dip_val[3], dip_val[4], dip_val[5]);
     // uart0_printf("DIP [0]%d [1]%d [2]%d [3]%d [4]%d [5]%d\n", dip_state[0], dip_state[1], dip_state[2], dip_state[3], dip_state[4], dip_state[5]);
+
+    // uart0_printf("made DIP[4] LOW \n");
+    // dip_state[4] = HIGH;
 
     binDip4 = 0;
     for (int i = 0; i < 4; i++) {

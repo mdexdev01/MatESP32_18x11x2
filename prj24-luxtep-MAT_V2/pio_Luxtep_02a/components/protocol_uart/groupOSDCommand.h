@@ -62,7 +62,7 @@ void buildPacket_OSD_1Bd(int my_board_id, byte *osd_packet_buffer, int start_x, 
     osd_packet_buffer[IDX_GROUP_ID] = G_OSD_COMMAND;  // GROUP ID
     osd_packet_buffer[IDX_MSG_ID] = (0 << 4) | 0;      // MSG ID, osd_id << 4 | rx_board_id 
     osd_packet_buffer[IDX_LENGTH_100] = packet_body_len / 100;           // height = 34
-    osd_packet_buffer[IDX_LENGTH_0] = packet_body_len % 100;             // width = 56
+    osd_packet_buffer[IDX_LENGTH_1] = packet_body_len % 100;             // width = 56
 
     osd_packet_buffer[header_len + IDX_OSD_START_X] = start_x;
     osd_packet_buffer[header_len + IDX_OSD_START_Y] = start_y;
@@ -104,7 +104,7 @@ int parsePacket_OSD_byMain(int my_board_id, byte *rx_packet_header, byte *rx_pac
     int rx_board_id = (msg_id & 0x0F);
 
     int size_100 = rx_packet_header[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
-    int size_1 = rx_packet_header[IDX_LENGTH_0];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+    int size_1 = rx_packet_header[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
     int body_len = size_100 * 100 + size_1;
 
     //---------------------------------------
@@ -147,7 +147,7 @@ int parsePacket_OSD_bySub(int my_board_id, byte *rx_packet_header, byte *rx_pack
     int rx_board_id = (msg_id & 0x0F);
 
     int size_100 = rx_packet_header[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
-    int size_1 = rx_packet_header[IDX_LENGTH_0];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+    int size_1 = rx_packet_header[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
     int body_len = size_100 * 100 + size_1;
 
     //---------------------------------------

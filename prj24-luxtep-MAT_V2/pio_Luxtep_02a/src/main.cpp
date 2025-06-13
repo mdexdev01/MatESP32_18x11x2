@@ -39,10 +39,15 @@
 
 */
 #include <Arduino.h>
-
-// #include <NeoPixelBus.h>
-
 #include <esp_log.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Preferences.h>
+#include <HTTPClient.h>
+#include <Update.h>
+
+#include "lib_wifiConfig.h"
+#include "lib_ota.h"
 #include "commPacket.h"
 #include "configPins-mdll-24-6822.h"
 #include "driver/ledc.h"
@@ -54,6 +59,8 @@
 #include "lib_buzzer.h"
 #include "lib_gpio.h"
 #include "lib_ledworks_28x35.h"
+
+#define FIRMWARE_VERSION "0.2.0-WIFI-OTA-20250609"
 
 bool is_ManualMode = false;  // false : Full frame, true : just one point measurement.
 
@@ -123,6 +130,7 @@ void setup() {
         uart_read_bytes(UART_NUM_1, dummy_buf, 1024, pdMS_TO_TICKS(50));
     */
     //-------------------------------------------
+    uart0_printf("FIRMWARE VERSION - %s \n", FIRMWARE_VERSION);
     uart0_printf("SETUP-HW PINS \n");
 
     // GPIO 47 비활성화 - 예외 처리
@@ -154,9 +162,38 @@ void setup() {
     read_dipsw(false);
     MY_BOARD_ID = binDip4;
 
+    //  ----------END OF HARDWARE SETTING ----------
+ 
     //  adc, osd, packet buffer
     setup_PacketBuffer(MY_BOARD_ID);
 
+    //  Set RS485 RX mode
+    setup_RS485();
+
+    //------------------------------
+    //  SEMAPHORES
+
+    semaForceBuf_rd = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
+    if (semaForceBuf_rd == NULL) {
+        Serial.println("Error: Unable to create semaphore!, semaForceBuf_rd");
+        while (1);
+    }
+
+    semaSendPermit = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
+    if (semaSendPermit == NULL) {
+        Serial.println("Error: Unable to create semaphore!, semaSendPermit");
+        while (1);
+    }
+    xSemaphoreGive(semaSendPermit);
+
+    semaTX1 = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)   
+    if (semaTX1 == NULL) {
+        Serial.println("Error: Unable to create semaphore!, semaTX1");
+        while (1);
+    }
+    xSemaphoreGive(semaTX1);
+
+    
     uart0_printf("PLAY SONG \n");
     //  --------------------------------------------
     //  WELCOME
@@ -213,32 +250,9 @@ void setup() {
         delay(2);
     }
 
-    //  Set RS485 RX mode
-    setup_RS485();
-
-    //------------------------------
-    //  SEMAPHORES
-
-    semaForceBuf_rd = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
-    if (semaForceBuf_rd == NULL) {
-        Serial.println("Error: Unable to create semaphore!, semaForceBuf_rd");
-        while (1);
-    }
-
-    semaSendPermit = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)
-    if (semaSendPermit == NULL) {
-        Serial.println("Error: Unable to create semaphore!, semaSendPermit");
-        while (1);
-    }
-    xSemaphoreGive(semaSendPermit);
-
-    semaTX1 = xSemaphoreCreateBinary();  // 바이너리 세마포어 생성 (초기 상태 : 점유)   
-    if (semaTX1 == NULL) {
-        Serial.println("Error: Unable to create semaphore!, semaTX1");
-        while (1);
-    }
-    xSemaphoreGive(semaTX1);
-
+    //  Setup WIFI
+    if(dip_state[4] == LOW) // HIGH : SERIAL MODE
+        setup_tcpStar();
 
     //------------------------------
     //  TASKS - 00
@@ -302,10 +316,39 @@ void setup() {
         uart0_printf("ERROR - TASK CREATES uart1_event_task \n");
     }
 
+    if (pdPASS != xTaskCreatePinnedToCore(
+                    receiverTask, 
+                    "RXTask", 
+                    4096, 
+                    NULL, 
+                    1, 
+                    &receiverTaskHandle, 
+                    CORE_1)) {
+        uart0_printf("ERROR - TASK CREATES receiverTask \n");
+    }
+
+    setup_ota();
 }
 
 void loop() {
-    vTaskDelay(1000); // loop() task 초입 딜레이
+    vTaskDelay(1); // loop() task 초입 딜레이
+
+    if(isOTACommand == true) {
+        loop_ota();
+
+        isOTACommand = false;
+        //  OTA
+        uart0_printf("OTA command \n");
+    }
+
+    if(dip_state[4] == HIGH) // HIGH : SERIAL MODE
+        return;
+
+    if(onWifiSetting == true)
+        return;
+
+    loop_tcpStar();
+
     return;
 }
 
@@ -318,9 +361,12 @@ void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);  // loopADCRead() task 초입 딜레이
 
+        if(isOTACommand == true)
+            continue;
+
         //      CHECK if UART1 is currently used.
         if ((isBoard0_duringPermitCycle == true) && (MY_BOARD_ID == 0)) {
-            #define NO_PERMIT_ACK_WAIT 150
+            #define NO_PERMIT_ACK_WAIT 120
             if (millis() - tickPermitLast < NO_PERMIT_ACK_WAIT) { // 데이터 에러로 인해 PERMIT의 ACK DATA를 받지 못함. 대개는 0번 보드 수신중에 BREAK 발생.
                 continue;
             }
@@ -350,17 +396,24 @@ void loopADCRead(void *pvParameters) {
     
             uart0_printf("a");
         }
+
+        //-  CHECK OTA
+        if((TactButtons[0]->isClickedVeryLong == true) && (TactButtons[2]->isClickedVeryLong == true)) {
+            isOTACommand = true;
+            // uart0_printf("OTA Button clicked !!! \n");
+            delay(2000);
+        }
         taskYIELD();
 
+        // delay(20);  // 20ms 
+
         //-  DRAW LED
-        if(isNoLEDMode == true){
-            isSensorDataFilled = true; //~~~ Trigger to send data to use UART0 and UART1. 이곳에 두면 85ms 추후 별개 과제로 추진. 
-        }
-        else{
+        if(isNoLEDMode == false){
             draw_ledObjects();  // RMT transfer. IT returns in 2ms BUT internally CONSUMES 28ms at least. (in case 10ms??)
             // xSemaphoreGive(semaForceBuf_rd);  // ✅ Task1이 직접 해제
-            isSensorDataFilled = true; //~~~ Trigger to send data to use UART0 and UART1. 이곳에 두면 115ms 추후 별개 과제로 추진. 
         }
+
+        isSensorDataFilled = true; //~~~ Trigger to send data to use UART0 and UART1. 이곳에 두면 115ms 추후 별개 과제로 추진. 
 
         taskYIELD();
         // To prevent TX1 inter board deadlock.
@@ -377,13 +430,22 @@ void loopADCRead(void *pvParameters) {
 void readDipSwitch() {
     if (loop_count % 100 == 0) { // read dip switch
         read_dipsw(true);
+
         MY_BOARD_ID = binDip4;
-        if(dip_state[4] == true){
+
+        if(dip_state[4] == true){ // HIGH
+            // SERIAL MODE
+        }
+        else{ // LOW
+            // WIFI MODE
+        }
+        
+        if(dip_state[5] == true){ // HIGH
             BoardID_MAX = 7;
         }
-        else{
-            // BoardID_MAX = 1;
-            BoardID_MAX = 7; // for test
+        else{ // LOW
+            BoardID_MAX = 1;
+            // BoardID_MAX = 7; // for test
         }
     }
 }
@@ -411,39 +473,7 @@ void loopDrawLED(void *pvParameters) {
 
     return;
 }
-/*
-bool is_ignore_this_longclick = false;
-bool is_command_thistime = false;
-bool is_ota_loop_on = false;
 
-bool checkOTAProc() {
-    if (TactButtons[0]->isClickedVeryLong == true) {
-        if (is_ignore_this_longclick == false) {
-            if (is_ota_loop_on == false) {
-                setup_ota();
-                is_ota_loop_on = true;
-                is_ignore_this_longclick = true;
-                uart0_printf("ota on \n");
-            } else {  // else : if (is_ota_loop_on == true)
-                //  stop ota
-                is_ota_loop_on = false;
-                is_ignore_this_longclick = true;
-                uart0_printf("ota off \n");
-            }
-        }
-
-    } else {
-        is_ignore_this_longclick = false;
-    }
-
-    if (is_ota_loop_on == true) {
-        uart0_printf("ota is working \n");
-        loop_ota();
-    }
-
-    return is_ota_loop_on;
-}
-*/
 void printArray_34x28() {
     uart0_printf("\n[%d]---------34 x 28---------------\n", loop_count);
     for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {

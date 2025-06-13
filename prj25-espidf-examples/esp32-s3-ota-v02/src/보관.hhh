@@ -1,0 +1,161 @@
+#include <WiFi.h>
+#include <Preferences.h>
+#include <HTTPClient.h>
+#include <Update.h>
+
+#define SERIAL_BAUD 921600
+#define FW_URL "https://luxtep-ota-v02.web.app/firmware.bin"
+
+Preferences prefs;
+String ssid, password;
+
+void connectToWiFi() {
+  Serial.printf("Connecting to SSID: %s\n", ssid.c_str());
+  WiFi.begin(ssid.c_str(), password.c_str());
+
+  int retry = 0;
+  while (WiFi.status() != WL_CONNECTED && retry++ < 20) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi connected!");
+    Serial.printf("My IP = %s \n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.println("\n❌ Failed to connect to WiFi");
+  }
+}
+
+void saveWiFiConfig(String ssid, String pw) {
+  prefs.begin("wifi", false);
+  prefs.putString("ssid", ssid);
+  prefs.putString("password", pw);
+  prefs.end();
+  Serial.println("🔒 WiFi credentials saved to Flash");
+}
+
+bool loadWiFiConfig() {
+  prefs.begin("wifi", true);
+  ssid = prefs.getString("ssid", "");
+  password = prefs.getString("password", "");
+  prefs.end();
+
+  return ssid.length() > 0 && password.length() > 0;
+}
+
+int performOTA() {
+  HTTPClient http;
+  http.begin(FW_URL);
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_OK) {
+    int contentLength = http.getSize();
+    bool canBegin = Update.begin(contentLength);
+
+    if (canBegin) {
+      WiFiClient& client = http.getStream();
+      size_t written = Update.writeStream(client);
+
+      if (written == contentLength) {
+        Serial.println("✅ OTA written successfully.");
+      } else {
+        Serial.printf("⚠️ Written only %d/%d bytes\n", written, contentLength);
+      }
+
+      if (Update.end()) {
+        if (Update.isFinished()) {
+          Serial.println("🚀 OTA complete. Rebooting...");
+          ESP.restart();
+          return 0;
+        } else {
+          Serial.println("⚠️ OTA not finished properly.");
+        }
+      } else {
+        Serial.printf("❌ OTA failed: %s\n", Update.errorString());
+      }
+    } else {
+      Serial.println("❌ Not enough space for OTA");
+    }
+  } else {
+    Serial.printf("❌ HTTP GET failed, code: %d\n", httpCode);
+  }  
+
+  http.end();
+
+  return 1;
+}
+
+#define FIRMWARE_VERSION "1.0.2"
+#define VERSION_URL "https://luxtep-ota-v02.web.app/version.txt"
+
+String remoteVer;
+
+bool isNewVersionAvailable() {
+  HTTPClient http;
+  http.begin(VERSION_URL);
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    remoteVer = http.getString();
+    remoteVer.trim();
+    Serial.printf("📦 Remote version: %s | Local version: %s\n", remoteVer.c_str(), FIRMWARE_VERSION);
+    return remoteVer != FIRMWARE_VERSION;
+  } else {
+    Serial.printf("⚠️ Failed to check version: %d\n", httpCode);
+    return false;  // 안전하게 OTA skip
+  }
+}
+
+void setup() {
+//    preferences.begin("wifi-cred", false);
+//    preferences.clear();  // ⚠️ 저장된 SSID/PASSWORD 전부 삭제
+//    preferences.end();
+
+  Serial.begin(SERIAL_BAUD);
+  delay(1000);
+  Serial.println("\n🔧 ESP32 OTA Initializing");
+  Serial.printf("Version: %s\n", FIRMWARE_VERSION);
+
+  if (!loadWiFiConfig()) {
+    // 최초 실행 시 or 저장된 정보 없음
+    Serial.println("⚠️ No saved WiFi credentials. Using hardcoded defaults.");
+
+    ssid = "KT_GiGA_2G_Wave2_4587";
+    password = "fab8ezx455";
+
+    connectToWiFi();
+    if (WiFi.status() == WL_CONNECTED) {
+      saveWiFiConfig(ssid, password);
+    }
+  } else {
+    connectToWiFi();
+  }
+
+}
+
+
+
+void loop() {
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (isNewVersionAvailable()) {
+      while(1) {
+        if(0 == performOTA())
+          break;
+        delay(1000);
+        Serial.println("🔄 Retrying OTA...");    
+      }
+    }
+    else {
+      Serial.println("✅ No new version available.");
+    }
+
+  } else {
+    Serial.println("🚫 Skipping OTA due to no WiFi connection.");
+  }
+  
+  // For debug or reconnect test
+  delay(1000);
+  Serial.printf("Cur Version: %s\n", remoteVer.c_str());
+}

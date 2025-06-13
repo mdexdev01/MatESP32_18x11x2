@@ -1,0 +1,26 @@
+
+void convForce2RGB(int force_val, byte &r_val, byte &g_val, byte &b_val) {
+    // G(0, 255, 0) ==> Yellow(255, 255, 0) ==> Red(255, 0, 0)
+    //  force_val range : probably 0~180
+
+    if (240 < force_val)
+        force_val = 240;
+
+    if (force_val < 1) {
+        r_val = 0;
+        g_val = 0;
+        b_val = 0;                // Zero
+    } else if (force_val < 80) {  // G to Y
+        r_val = force_val * 3;
+        g_val = 160;
+        b_val = 0;                 // C to G
+    } else if (force_val < 160) {  // Y to R
+        r_val = 255;
+        g_val = 255 - (force_val - 80) * 3;
+        b_val = 0;  // C to G
+    } else {        // O to R
+        r_val = 255;
+        g_val = 0;
+        b_val = 0;
+    }
+}

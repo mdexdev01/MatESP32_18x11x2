@@ -1,0 +1,26 @@
+///////////////////////////////////////////////
+esp32-s3-wifi-v01
+ble 없이 esp32가 웹서버를 열어서 ap 정보를 받아서 wifi 연결.
+
+///////////////////////////////////////////////
+firebase-ota-server : 럭스텝 ota 서버. 
+
+jin@mdex.co.kr로 firebase.google.com 접속.
+https://firebase.google.com/docs/hosting?hl=ko
+
+< 설치 및 실행 >
+npm install -g firebase-tools
+firebase init hosting
+
+< 호스팅 파일 변경 >
+c:\coding\GitHub\MatESP32_18x11x2\prj25-espidf-examples\
+firebase login 혹은
+firebase login --reauth
+public에 파일을 넣고
+firebase deploy
+
+
+///////////////////////////////////////////////
+esp32-s3-ota-v02
+
+사용하지 않음

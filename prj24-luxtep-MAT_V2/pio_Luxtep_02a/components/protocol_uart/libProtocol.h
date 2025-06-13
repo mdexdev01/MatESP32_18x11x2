@@ -30,7 +30,7 @@ typedef enum {
 
     IDX_OSD_ID = 5,      // G_OSD_COMMAND, Left 4bit(osd id) | Right 4bit(board id)
     IDX_LENGTH_100 = 6,  // G_OSD_COMMAND, OSD LENGTH / 100 (SubHeader + Body, No Tail)
-    IDX_LENGTH_0 = 7,    // G_OSD_COMMAND, OSD LENGTH % 100 (SubHeader + Body, No Tail)
+    IDX_LENGTH_1 = 7,    // G_OSD_COMMAND, OSD LENGTH % 100 (SubHeader + Body, No Tail)
 } PACKET_HEADER_OFFSET;
 
 #define HEAD_LEN 8
@@ -78,6 +78,18 @@ typedef enum {
     M_PERMIT = 0,
 } MG_DEVICE_IO;
 
+//---------------------------------------------
+//      GROUP ID    : MG_APP_COMMAND
+//      MSG ID      
+typedef enum {
+    M_AC_WIFI_AP_CONFIG_REQ = 0,    // request to owner
+    M_AC_WIFI_AP_CONFIG_INFO,       // info from owner
+    M_AC_WIFI_AP_CONFIG_INFO_ACK,   // ack from device, 1: OK, 0: FAIL
+} MG_APP_COMMAND;
+
+//---------------------------------------------
+//      GROUP ID    : MG_SENSOR_DATA, MG_LED_COMMAND
+//      MSG ID      : M_BOARD_0 ~ M_BOARD_7
 typedef enum {
     M_BOARD_0 = 0,
     M_BOARD_1,
@@ -91,7 +103,7 @@ typedef enum {
     M_BOARD_ALL,
     M_APP_OWNER,
 } MG_SENSOR_DATA,
-    MG_LED_COMMAND;
+    MG_OSD_COMMAND;
 
 //---------------------------------------------
 //  SUB PACKET HEADER - OSD 1 Board
@@ -107,7 +119,7 @@ typedef enum {
     IDX_RES_SUB0,
     IDX_RES_SUB1,        // 7
     OSD_SUB_HEADER_LEN,  // 8
-} OSD_SUB_HEADER_OFFSET;
+} SUB_HEADER_OSD_OFFSET;
 
 #define SUB_HEAD_LEN 8
 

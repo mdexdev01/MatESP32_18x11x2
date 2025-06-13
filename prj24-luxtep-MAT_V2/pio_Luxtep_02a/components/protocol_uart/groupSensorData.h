@@ -11,7 +11,7 @@ void buildPacket_Sensor_1Set(int my_board_id, byte *tx_packet_buffer, byte *adc_
     tx_packet_buffer[IDX_HEADER_0] = HEADER_SYNC;     // 0xFF
     tx_packet_buffer[IDX_HEADER_1] = HEADER_SYNC;     // 0xFF
     tx_packet_buffer[IDX_VER] = 0x02;                 // Major Ver
-    tx_packet_buffer[IDX_TX_BOARD_ID] = M_BOARD_ALL;  // BOARD ID contained in this PACKET, M_BOARD_ALL = 8
+    tx_packet_buffer[IDX_TX_BOARD_ID] = my_board_id;  // BOARD ID contained in this PACKET, M_BOARD_ALL = 8
 
     tx_packet_buffer[IDX_GROUP_ID] = G_SENSOR_DATA;  // GROUP ID
     tx_packet_buffer[IDX_MSG_ID] = M_BOARD_ALL;      // MSG ID
@@ -46,7 +46,7 @@ void buildPacket_Sensor_1Set(int my_board_id, byte *tx_packet_buffer, byte *adc_
         }
     }
 
-    tx_packet_buffer[pa_index++] = 0;          //  Reserved 2
+    tx_packet_buffer[pa_index++] = build_count % 100;          //  Reserved 2
     tx_packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
 
     build_count++;

@@ -24,6 +24,7 @@
 
 #include "libProtocol.h"
 #include "groupDeviceIO.h"
+#include "groupAppCommand.h"
 #include "groupOSDCommand.h"
 #include "groupSensorData.h"
 #include "packetBuffer.h"
@@ -165,7 +166,7 @@ void sendPacket0(byte *packet_buffer, int packet_len) {
     int cur_time = millis();
     // uart0_printf("[%8d] TX0, go %dth \n", millis(), pumpCount);
 
-    uart0_printf("S]"); // Use Serial
+    // uart0_printf("S]"); // Use Serial
     uart_write_bytes(UART_NUM_0, packet_buffer, packet_len);  // 이거 non-blocking으로 바꿔야 함.
 
     int time_dur_ms = 50;  // 11ms per one board
@@ -173,8 +174,8 @@ void sendPacket0(byte *packet_buffer, int packet_len) {
     if (time_dur_ms <= (tx_dur_us / 1000))
         uart0_printf("[%8d] TX0, Time Err %dus \n", millis(), tx_dur_us);
 
-    uart0_printf("\n"); // For aligned log
-    uart0_printf("s"); // Use Serial
+    // uart0_printf("\n"); // For aligned log
+    // uart0_printf("s"); // Use Serial
 
     // uart0_printf("[%8d] TX0, size= %d, dur=%d ms, %dth \n", millis(), packet_len, millis() - cur_time, pumpCount);
     // printPacket(packet_buffer, packet_len);
@@ -216,10 +217,10 @@ bool sendPacket1(byte *packet_buffer, int packet_len) {
     
         int64_t cur_snap = esp_timer_get_time();  // 마이크로초 단위로 타이머 초기화
     
-        uart0_printf("B"); // Use Bus
+        // uart0_printf("B"); // Use Bus
         tx_len = uart_write_bytes(UART_NUM_1, packet_buffer, packet_len);
         int64_t core_tx_dur_us = wait_tx_done_async(UART_NUM_1, 40);  // uart_num, max_wait_duration_ms
-        uart0_printf("b"); // Use Bus
+        // uart0_printf("b"); // Use Bus
     
         int64_t duration_us = esp_timer_get_time() - cur_snap;
     
@@ -273,6 +274,80 @@ void uart0_event_task(void *pvParameters) {
         }
 
         taskYIELD();
+    }
+}
+
+void receiverTask(void* param) {
+    byte *currentRxBuffer;
+
+    while (true) {
+        if(isTCP_Connected == false) {
+            vTaskDelay(200 / portTICK_PERIOD_MS);  // 200ms 대기 후 재시도
+            continue;    
+        }
+        // if(pTcpClient == NULL) {
+        //   vTaskDelay(200 / portTICK_PERIOD_MS);  // 1초 대기 후 재시도
+        //   continue;    
+        // }
+
+        // if (false == pTcpClient->connected()){
+        //   vTaskDelay(200 / portTICK_PERIOD_MS);  // 200ms 대기 후 재시도
+        //   continue;
+        // }
+
+        if (PACKET_SIZE <= pTcpClient->available()) {
+            uint8_t rxBuf[PACKET_SIZE];
+            int read_len = pTcpClient->read(rxBuf, HEAD_LEN);
+
+            uart0_printf("[RX] Packet received from PC, size: %d \n", read_len);
+
+            if (rxBuf[IDX_HEADER_0] == HEADER_SYNC && rxBuf[IDX_HEADER_1] == HEADER_SYNC) {
+                uart0_printf("Header Pass \n");
+
+                // 필요한 처리를 여기에 추가 가능
+                int msg_id = rxBuf[IDX_MSG_ID];
+                int rx_board_id = (msg_id & 0x0F);
+                int size_100 = rxBuf[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
+                int size_1 = rxBuf[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+                int body_len = size_100 * 100 + size_1;
+
+                if (rx_board_id == M_BOARD_0) {
+                    currentRxBuffer = packetBuf_OSD;  // in order to deliver to the sub
+                } else {
+                    currentRxBuffer = packetBuf_OSDSub;  // in order to deliver to the sub
+                }
+
+                memcpy(currentRxBuffer, rxBuf, HEAD_LEN);  // copy header
+
+                read_len = pTcpClient->read(currentRxBuffer + HEAD_LEN, body_len);  // read body
+                uart0_printf("Payload read size: %d \n", read_len);
+
+                if(currentRxBuffer[HEAD_LEN + body_len - 1] == TAIL_SYNC) {
+                    uint8_t seq = rxBuf[PACKET_SIZE - 2];
+                    uart0_printf("[RX] OSD | seq: %d\n", currentRxBuffer[HEAD_LEN + body_len - 2]);
+                }
+                else {
+                    uart0_printf("[RX] OSD | seq: %d\n", currentRxBuffer[HEAD_LEN + body_len - 2]);
+                    continue;  // skip processing if packet error
+                }
+
+                // printUart1("#[%8d] Data len= %d, body [2]%d[3]%d ~ [-2]%d[-1]%d \n", millis(), 
+                //         read_len, currentRxBuffer[2], currentRxBuffer[3], 
+                //         currentRxBuffer[body_len-2], currentRxBuffer[body_len-1]);
+
+                //  PARSE OSD DATA
+                int ret_val = parsePacket_OSD_byMain(MY_BOARD_ID, rxBuf, currentRxBuffer + HEAD_LEN, isSubOSD_Filled);
+                packetOSD_SizeSub = body_len + HEAD_LEN;
+
+            }
+            else { // ERROR - HEADER_SYNC 
+                uart0_printf("[RX] Packet Error from PC, size: %d \n", read_len);
+                uart0_printf("[RX] Packet Error from PC, data: [0]%d, [1]%d, [2]%d, [3]%d ~ [%d]%d \n",
+                             rxBuf[0], rxBuf[1], rxBuf[2], rxBuf[3],
+                             read_len - 1, rxBuf[read_len - 1]);
+            }
+        }
+        delay(1);
     }
 }
 
@@ -336,7 +411,7 @@ void uart1_event_task(void *pvParameters) {
                                 packet_to_read = 962;
                                 break;
                             case G_OSD_COMMAND:
-                                packet_to_read = eventBuffer[IDX_LENGTH_100] * 100 + eventBuffer[IDX_LENGTH_0] + HEAD_LEN;
+                                packet_to_read = eventBuffer[IDX_LENGTH_100] * 100 + eventBuffer[IDX_LENGTH_1] + HEAD_LEN;
                                 break;
 
                             default:
@@ -405,8 +480,8 @@ void uart1_event_task(void *pvParameters) {
                 case UART_FIFO_OVF: {
                     int queue_num = uxQueueMessagesWaiting(UART1_EventQueue);
 
-                    uart0_printf("\n[%11lldus] RX1 ERROR ++++ ++++ ++++ type=%d, len=%d (1:BREAK, 2:FULL, 3:Overflow) ++++ ++++ ++++ ++++ \n", 
-                                esp_timer_get_time(), event.type, event.size);
+                    // uart0_printf("\n[%11lldus] RX1 ERROR ++++ ++++ ++++ type=%d, len=%d (1:BREAK, 2:FULL, 3:Overflow) ++++ ++++ ++++ ++++ \n", 
+                    //             esp_timer_get_time(), event.type, event.size);
 
                     if (event.type == UART_BREAK) {
                         // if (4 < event.size) 
@@ -501,7 +576,7 @@ int processRX0(int event_size) {
             int msg_id = rx_head[IDX_MSG_ID];
             int rx_board_id = (msg_id & 0x0F);
             int size_100 = rx_head[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
-            int size_1 = rx_head[IDX_LENGTH_0];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+            int size_1 = rx_head[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
             int body_len = size_100 * 100 + size_1;
 
             if (rx_board_id == M_BOARD_0) {
@@ -523,8 +598,30 @@ int processRX0(int event_size) {
 
         } break;
 
-        case G_APP_COMMAND:  // NOT USE IT NOW.  it's only for the Main
-            break;
+        case G_APP_COMMAND: {  // NOT USE IT NOW.  it's only for the Main
+            int msg_id = rx_head[IDX_MSG_ID];
+            int size_100 = rx_head[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
+            int size_1 = rx_head[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+            int body_len = size_100 * 100 + size_1;
+
+            currentRxBuffer = packetBuf;
+
+            read_len = uart_read_bytes(UART_NUM_0, currentRxBuffer, body_len, portMAX_DELAY);
+
+            onWifiSetting = true;
+            int ret_val = parsePacket_WifiApConfigInfo(rx_head, currentRxBuffer, body_len);
+            if(ret_val < 0) {
+                uart0_printf("#[%8d]>> ERROR, parsePacket_WifiApConfigInfo failed with %d \n", millis(), ret_val);
+                buildPacket_WifiApConfigAck(currentRxBuffer, 0);  // Send FAIL ack
+            } else {
+                uart0_printf("#[%8d]>> parsePacket_WifiApConfigInfo success with %d \n", millis(), ret_val);
+                buildPacket_WifiApConfigAck(currentRxBuffer, 1);  // Send SUCCESS ack
+            }
+            sendPacket0(currentRxBuffer, HEAD_LEN + 2);  // Send ack
+
+            onWifiSetting = false;  // Reset wifi setting flag
+
+        }break;
 
         case G_DEVICE_IO:      // no RX on uart0
         case G_SENSOR_DATA: {  // no RX on uart0
@@ -532,7 +629,7 @@ int processRX0(int event_size) {
         } break;
 
         default:
-            printUart1("#[%8d]>> ERROR, WRONG GROUP ID = %d \n", rx_GROUP_ID);
+            uart0_printf("#[%8d]>> ERROR, WRONG GROUP ID = %d \n", rx_GROUP_ID);
             return -2;
     }
 
@@ -550,8 +647,8 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
     int read_len = rx1_packet_size;
 
     if (checkPacketHead(rx_head) == false) {
-        uart0_printf("[%8d] RX1 Header BAD- size = %d/%d (ME = %d) \n", millis(), read_len, rx1_packet_size, MY_BOARD_ID);
-        printPacketHeader(rx_head, 10);
+        // uart0_printf("[%8d] RX1 Header BAD- size = %d/%d (ME = %d) \n", millis(), read_len, rx1_packet_size, MY_BOARD_ID);
+        // printPacketHeader(rx_head, 10);
 
         return -1;
     }
@@ -584,7 +681,7 @@ int processRX1(byte *rx1_packet, int rx1_packet_size) {
             //  PARSE SENSOR DATA
             int tx_board_id;
             parsePacket_Sensor_1Bd(MY_BOARD_ID, rx_head, bufferToParse, tx_board_id);
-            uart0_printf("D"); // read data
+            uart0_printf("D%d", tx_board_id); // read data
 
             // uart0_printf("\n[%8d] RX1, Sensor {Sender:%d ==> ME} [2]%d \n",
             //              millis(), tx_board_id, rx_head[IDX_VER]);
@@ -686,6 +783,9 @@ void pumpSerial(void *pParam) {
     while (true) {
         vTaskDelay(1); // pumpSerial() task 초입.
 
+        if(isOTACommand == true)
+            continue;
+
         // uart0_printf("[%8d] PUMP loop = %d (dip=%d) \n", millis(), pumpCount, MY_BOARD_ID);
 
         if (MY_BOARD_ID == 0) {
@@ -706,7 +806,14 @@ void pumpSerial(void *pParam) {
 
             // Send Sensor Data to UART0
             buildPacket_Sensor_1Set(MY_BOARD_ID, packetBuf, forceBuffer_rd, NUM_1SET_SEN_WIDTH, NUM_1SET_SEN_HEIGHT);
-            // sendPacket0(packetBuf, PACKET_LEN_SEN_1SET);  // it consumes 11ms per one board. so for 2, it consumes 22ms.
+            if(dip_state[4] == HIGH) { // Serial
+                sendPacket0(packetBuf, PACKET_LEN_SEN_1SET);  // it consumes 11ms per one board. so for 2, it consumes 22ms.
+            }
+            else { // TCP
+                loop_tcpStar();
+                sendPacketTCP(packetBuf, PACKET_LEN_SEN_1SET);
+                // buildAndSendPacket_Test();
+            }
 
             // Send Permit to Sub#1
             considerToPermit(50);  //  1 : 1ms interval
@@ -735,8 +842,8 @@ void pumpSerial(void *pParam) {
                 // sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
                 // packetBuf[3] = 6;
                 // sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
-                packetBuf[3] = 7;
-                sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
+                // packetBuf[3] = 7;
+                // sendPacket1(packetBuf, PACKET_LEN_SEN_1Bd);
             }
 
             isSensorDataFilled = false;

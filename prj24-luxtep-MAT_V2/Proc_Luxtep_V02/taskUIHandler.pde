@@ -303,8 +303,8 @@ void test_OSD() {
   
   int osd_start_x = 0 + (tx_count % 16);
   int osd_start_y = 0 + (tx_count % 27);
-  int osd_width = 12;//6; // max : 28
-  int osd_height = 8;//12; // max : 35
+  int osd_width = 4;//6; // max : 28
+  int osd_height = 3;//12; // max : 35
 
   int packet_max_size = packet_head_len + osd_width * osd_height + packet_tail_len;
 
