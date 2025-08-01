@@ -1,0 +1,52 @@
+graph TD
+    A[Boot / Reset] --> B{WiFi Credentials in NVS?};
+
+    B -- No / WiFi Connect Failed --> C[CONFIG_MODE_SOFTAP];
+    B -- Yes / WiFi Connected --> D[NORMAL_OPERATION];
+
+    C -- Config Saved And Reboot --> A; 
+
+    subgraph NORMAL_OPERATION_FLOW [NORMAL_OPERATION: Service Management Loop]
+        direction LR 
+        D_entry[Loop Start] --> D_wifi_status{Is WiFi Connected?};
+        
+        D_wifi_status -- Yes --> D_mqtt_status{Is MQTT Connected?};
+        D_wifi_status -- No --> D_wifi_reconn[Reattempt WiFi Connect];
+
+        D_mqtt_status -- No --> D_mqtt_reconn[Attempt MQTT Reconnect];
+        D_mqtt_reconn --> D_mqtt_status; 
+        D_mqtt_status -- Yes --> D_tcp_status{Is TCP Connected?}; 
+
+        D_tcp_status -- Yes --> D_check_send_time{Time to Send Data?}; 
+        D_tcp_status -- No --> D_tcp_connect_timer{Time for TCP Connect?}; 
+        
+        D_check_send_time -- Yes --> D_send_data_action[Perform Data Send]; 
+        D_check_send_time -- No --> D_end_cycle[End Loop Cycle]; 
+
+        D_send_data_action --> D_end_cycle; 
+        D_tcp_connect_timer -- No --> D_end_cycle; 
+        D_end_cycle --> D_entry; 
+
+
+        D_tcp_connect_timer -- Yes --> D_tcp_ip_source{Available TCP IP Source?};
+        
+        D_tcp_ip_source -- "Stored NVS IP Available" --> D_tcp_connect_nvs[Attempt TCP Connect - NVS IP]; 
+        D_tcp_connect_nvs -- Success --> D_tcp_status; 
+        D_tcp_connect_nvs -- Fail --> D_nvs_failed_mqtt_wait[NVS Failed / Wait MQTT IP];
+
+        D_tcp_ip_source -- "No NVS IP OR Only MQTT IP Available" --> D_tcp_connect_mqtt[Attempt TCP Connect - MQTT IP]; 
+        
+        D_nvs_failed_mqtt_wait -- "MQTT IP Received" --> D_tcp_connect_mqtt; 
+        D_nvs_failed_mqtt_wait -- "No MQTT IP Yet" --> D_mqtt_status; 
+
+        D_tcp_connect_mqtt -- Success --> D_tcp_status; 
+        D_tcp_connect_mqtt -- Fail --> D_mqtt_status; 
+
+        D_data --> D_wifi_status; 
+
+    end 
+
+    D -- "Start Normal Operation Loop" --> NORMAL_OPERATION_FLOW;
+    
+    D_wifi_reconn -- WiFi Reconnected --> D_wifi_status; 
+    D_wifi_reconn -- WiFi Reconnect Failed --> C;
