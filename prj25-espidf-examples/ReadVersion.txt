@@ -14,7 +14,7 @@ firebase init hosting
 
 < 호스팅 파일 변경 >
 c:\coding\GitHub\MatESP32_18x11x2\prj25-espidf-examples\
-firebase login 혹은
+firebase login 혹은 (area@mdex.co.kr)
 firebase login --reauth
 public에 파일을 넣고
 firebase deploy

@@ -1,0 +1,10 @@
+
+[1m[37m===[39m Deploying to 'luxtep-ota-v02'...[22m
+
+[36m[1mi [22m[39m deploying [1mhosting[22m
+[36m[1mi  hosting[luxtep-ota-v02]:[22m[39m beginning deploy...
+[36m[1mi  hosting[luxtep-ota-v02]:[22m[39m found 10 files in [1mpublic[22m
+
+[1m[31mError:[39m[22m Task index 0 failed: retries exhausted after 4 attempts, with error: Request to https://firebasehosting.googleapis.com/v1beta1/projects/253017033705/sites/luxtep-ota-v02/versions/476fb036b2114dfb:populateFiles had HTTP Error: 400, Executable files are forbidden on the Spark billing plan. For more details, see https://firebase.google.com/support/faq#hosting-exe-restrictions
+
+[1m[31mError:[39m[22m Task index 0 failed: retries exhausted after 4 attempts, with error: Request to https://firebasehosting.googleapis.com/v1beta1/projects/253017033705/sites/luxtep-ota-v02/versions/476fb036b2114dfb:populateFiles had HTTP Error: 400, Executable files are forbidden on the Spark billing plan. For more details, see https://firebase.google.com/support/faq#hosting-exe-restrictions

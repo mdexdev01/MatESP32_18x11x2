@@ -1,0 +1,31 @@
+///////////////////////////////////////////////
+firebase-ota-server : 럭스텝 ota 서버. 
+
+area@mdex.co.kr로 firebase.google.com 접속. 
+파일 위치) https://luxtep-ota-v02.web.app/firmware.bin
+
+< 온라인에서 서버 실행 >
+이미 실행 중이라면 이 과정은 불필요.
+hosting 도움말) https://firebase.google.com/docs/hosting?hl=ko
+firebase init hosting
+
+< 신규 펌웨어 업로드하기>
+내 피씨의 public폴더에 firmware.bin파일을 넣고
+cmd 실행.
+터미널에서 public 폴더로 이동 후 아래 실행.
+
+firebase login ==>area@mdex.co.kr
+혹은
+firebase login --reauth
+웹브라우저에서 로그인 (약 10초 소요)
+
+firebase deploy
+
+1MB를 deploy 하는데에 1분 정도 소요.
+
+<새 PC에서 실행>
+node.js설치 (npm을 위해)
+cmd 실행해서 node.exe가 존재하는 폴더로 이동. 아래 실행해서 버전 뜨나 확인.
+node -v
+npm -v
+npm install -g firebase-tools
