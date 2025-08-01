@@ -46,8 +46,8 @@
 #include <HTTPClient.h>
 #include <Update.h>
 
-#include "lib_wifiConfig.h"
-#include "lib_ota.h"
+// #include "lib_wifiConfig.h"
+// #include "lib_ota.h"
 #include "commPacket.h"
 #include "configPins-mdll-24-6822.h"
 #include "driver/ledc.h"
@@ -59,6 +59,7 @@
 #include "lib_buzzer.h"
 #include "lib_gpio.h"
 #include "lib_ledworks_28x35.h"
+#include <network_task.h>
 
 #define FIRMWARE_VERSION "0.2.0-WIFI-OTA-20250609"
 
@@ -69,6 +70,8 @@ TaskHandle_t hTask_UART0;
 TaskHandle_t hTask_UART1;
 
 SemaphoreHandle_t semaForceBuf_rd;  // 세마포어 핸들 생성
+
+int board_id_hardcoding = 7;
 
 #define CORE_0 0
 #define CORE_1 1
@@ -251,8 +254,9 @@ void setup() {
     }
 
     //  Setup WIFI
-    if(dip_state[4] == LOW) // HIGH : SERIAL MODE
-        setup_tcpStar();
+    if(dip_state[4] == LOW) { // HIGH : SERIAL MODE
+        // setup_tcpStar();
+    }
 
     //------------------------------
     //  TASKS - 00
@@ -292,6 +296,7 @@ void setup() {
         uart0_printf("ERROR - TASK CREATES loopDrawLED \n");
     }
 */
+/*
     // UART0 이벤트 처리 태스크 생성
     if (pdPASS != xTaskCreatePinnedToCore(
                       uart0_event_task,
@@ -303,7 +308,7 @@ void setup() {
                       CORE_0)) {  // 실행될 코어 0
         uart0_printf("ERROR - TASK CREATES uart0_event_task \n");
     }
-
+*/
     // UART1 이벤트 처리 태스크 생성
     if (pdPASS != xTaskCreatePinnedToCore(
                       uart1_event_task,
@@ -317,7 +322,7 @@ void setup() {
     }
 
     if (pdPASS != xTaskCreatePinnedToCore(
-                    receiverTask, 
+                    receiverTask, // tcpReceiverTask로 대체 예정
                     "RXTask", 
                     4096, 
                     NULL, 
@@ -326,28 +331,30 @@ void setup() {
                     CORE_1)) {
         uart0_printf("ERROR - TASK CREATES receiverTask \n");
     }
+    setup_network_tasks();
 
-    setup_ota();
+    // setup_ota();
 }
 
 void loop() {
     vTaskDelay(1); // loop() task 초입 딜레이
 
-    if(isOTACommand == true) {
-        loop_ota();
+    // if(isOTACommand == true) {
+    //     loop_ota();
 
-        isOTACommand = false;
-        //  OTA
-        uart0_printf("OTA command \n");
-    }
+    //     isOTACommand = false;
+    //     //  OTA
+    //     uart0_printf("OTA command \n");
+    // }
+    loop_network_tasks();
 
     if(dip_state[4] == HIGH) // HIGH : SERIAL MODE
         return;
 
-    if(onWifiSetting == true)
-        return;
+    // if(onWifiSetting == true)
+    //     return;
 
-    loop_tcpStar();
+    // loop_tcpStar();
 
     return;
 }
@@ -361,25 +368,24 @@ void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);  // loopADCRead() task 초입 딜레이
 
-        if(isOTACommand == true)
-            continue;
+        // if(isOTACommand == true)
+        //     continue;
 
         //      CHECK if UART1 is currently used.
-        if ((isBoard0_duringPermitCycle == true) && (MY_BOARD_ID == 0)) {
-            #define NO_PERMIT_ACK_WAIT 120
-            if (millis() - tickPermitLast < NO_PERMIT_ACK_WAIT) { // 데이터 에러로 인해 PERMIT의 ACK DATA를 받지 못함. 대개는 0번 보드 수신중에 BREAK 발생.
-                continue;
-            }
-            uart0_printf("No permit ack wait %d ms \n", NO_PERMIT_ACK_WAIT);
-            isBoard0_duringPermitCycle = false;
-        }
+        // if ((isBoard0_duringPermitCycle == true) && (MY_BOARD_ID == 0)) {
+        //     #define NO_PERMIT_ACK_WAIT 120
+        //     if (millis() - tickPermitLast < NO_PERMIT_ACK_WAIT) { // 데이터 에러로 인해 PERMIT의 ACK DATA를 받지 못함. 대개는 0번 보드 수신중에 BREAK 발생.
+        //         continue;
+        //     }
+        //     uart0_printf("No permit ack wait %d ms \n", NO_PERMIT_ACK_WAIT);
+        //     isBoard0_duringPermitCycle = false;
+        // }
 
         if(isSensorDataFilled == true) 
             continue;
 
         //-   SCAN ADC
         {
-            uart0_printf("A");
             int cur_ms = millis();
             // uart0_printf("[%8d] adc start \n", millis());
 
@@ -392,14 +398,14 @@ void loopADCRead(void *pvParameters) {
             //-  CHECK HW BUTTONS
             loop_gpioWork();  // check buttons
             readDipSwitch();  // read dip switch
+            board_id_hardcoding = MY_BOARD_ID;
             // checkOTAProc();   // check OTA
-    
-            uart0_printf("a");
         }
 
         //-  CHECK OTA
         if((TactButtons[0]->isClickedVeryLong == true) && (TactButtons[2]->isClickedVeryLong == true)) {
             isOTACommand = true;
+            // isOTACommand = true;
             // uart0_printf("OTA Button clicked !!! \n");
             delay(2000);
         }
@@ -417,7 +423,7 @@ void loopADCRead(void *pvParameters) {
 
         taskYIELD();
         // To prevent TX1 inter board deadlock.
-        considerToPermit(190); 
+        // considerToPermit(190); 
 
         loop_count++;
 
@@ -472,35 +478,4 @@ void loopDrawLED(void *pvParameters) {
     }
 
     return;
-}
-
-void printArray_34x28() {
-    uart0_printf("\n[%d]---------34 x 28---------------\n", loop_count);
-    for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
-        for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-            uart0_printf(" %3d ", calcedVolt[col_pwr][row_sen]);
-        }
-        uart0_printf("\n");
-    }
-
-    for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
-        for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-            int led_index = row_sen * NUM_PWR + col_pwr;
-            uart0_printf("[%3d]", ledBlurBuf[led_index]);  // rd
-        }
-        uart0_printf("\n");
-    }
-
-    // for (int row_sen = NUM_SEN - 1; -1 < row_sen; row_sen--) {
-    //     for (int col_pwr = 0; col_pwr < NUM_PWR; col_pwr++) {
-    // int r_value = calcR(VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
-    // uart0_printf("[%2d,%2d] %4d", col_pwr, row_sen, r_value);
-
-    // int f_value = calcF(VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
-    // uart0_printf("[%2d,%2d] %4d", col_pwr, row_sen, f_value);
-
-    // uart0_printf("[%d, %d] %4d /%4d", col_pwr, row_sen, VOut_Value[col_pwr][row_sen], VRef_Value[col_pwr][row_sen]);
-    // }
-    // uart0_printf("\n");
-    // }
 }

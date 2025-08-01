@@ -1,0 +1,32 @@
+graph TD
+    A[Start / Reboot] --> B{Saved WiFi credentials<br>exist in NVS?};
+
+    B -- "No" --> E[<b>Config Mode</b>];
+    B -- "Yes" --> C{Attempt to connect to WiFi<br>using saved credentials};
+
+    C -- "Fail" --> E;
+    C -- "Success" --> F[<b>Normal Mode</b><br>Connect to MQTT Broker<br><br><b>lib_hiveMqtt.h</b><br><i>client</i>];
+
+    subgraph "Setup Mode (lib_config_mode.h)"
+        E --> G[Start SoftAP & Web Server<br><br><i>server, shouldEnterSoftAP</i>];
+        G --> H{User connects via browser<br>and submits new credentials?};
+        H -- "Yes" --> I[Save new credentials to NVS<br><br><b>lib_nvs.h</b><br><i>prefs</i>];
+        I --> J[Restart Device];
+        J --> A;
+    end
+
+    F --> K[<b>Enter Main Loop</b>];
+
+    subgraph "Main Loop (network_task.h)"
+        K --> L{TCP Client Connected?<br><br><b>lib_tcpClient.h</b><br><i>tcpClient</i>};
+        L -- "No" --> M[Attempt TCP Connect<br>1. Try IP from NVS<br>2. Try IP from MQTT<br><br><i>storedTcpServerIp<br>receivedTcpServerIpAddress</i>];
+        M --> L;
+        L -- "Yes" --> N[Send periodic<br>TCP Data Packet<br>with <i>board_id</i>];
+        N --> O{Listen for Serial Commands}; 
+        O -- "'do ota' received?" --> P[Start HTTP OTA Update<br><br><b>lib_http_ota.h</b>];
+        P -- "Success" --> J;
+        O -- "No command" --> K;
+    end
+
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+    style F fill:#9cf,stroke:#333,stroke-width:2px

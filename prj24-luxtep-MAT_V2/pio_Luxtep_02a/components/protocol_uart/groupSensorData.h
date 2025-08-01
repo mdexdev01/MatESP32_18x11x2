@@ -56,8 +56,8 @@ void buildPacket_Sensor_1Bd(int my_board_id, byte *tx_packet_buffer, byte *adc_b
     tx_packet_buffer[IDX_HEADER_0] = HEADER_SYNC;  // 0xFF
     tx_packet_buffer[IDX_HEADER_1] = HEADER_SYNC;  // 0xFF
     // tx_packet_buffer[IDX_VER] = 0x02;              // Major Ver
-    // tx_packet_buffer[IDX_VER] = build_count % 100;    // Major Ver
-    tx_packet_buffer[IDX_VER] = indexPermit;  // Major Ver
+    tx_packet_buffer[IDX_VER] = build_count % 100;    // Major Ver
+    // tx_packet_buffer[IDX_VER] = indexPermit;  // Major Ver
 
     tx_packet_buffer[IDX_TX_BOARD_ID] = my_board_id;  // BOARD ID owns this PACKET
 
@@ -86,7 +86,7 @@ void buildPacket_Sensor_1Bd(int my_board_id, byte *tx_packet_buffer, byte *adc_b
 
     pa_index = HEAD_LEN + (height * width);
 
-    tx_packet_buffer[pa_index++] = 0;          //  Reserved 2
+    tx_packet_buffer[pa_index++] = build_count % 100;          //  Reserved 2
     tx_packet_buffer[pa_index++] = TAIL_SYNC;  // 0xFE
 
     //  build this packet while led is drawing. So the below comment can show the jitter.

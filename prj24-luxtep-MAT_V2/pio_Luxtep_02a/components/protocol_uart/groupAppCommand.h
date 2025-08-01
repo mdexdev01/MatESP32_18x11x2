@@ -40,7 +40,7 @@ int parsePacket_WifiApConfigInfo(byte *rx_packet_header, byte *rx_packet_body, i
     if (rx_packet_header[IDX_MSG_ID] != M_AC_WIFI_AP_CONFIG_INFO) {
         return -1;  // Invalid message ID
     }
-
+/*
 
     int json_len = rx_packet_body_len;
     int remaining = json_len;
@@ -78,11 +78,11 @@ int parsePacket_WifiApConfigInfo(byte *rx_packet_header, byte *rx_packet_body, i
     }
 
     // 저장
-    gPrefrences.begin("wifi", false);
-    gPrefrences.putString("ssid", ssid);
-    gPrefrences.putString("password", pass);
-    gPrefrences.putString("server_ip", ip);
-    gPrefrences.end();
+    // gPrefrences.begin("wifi", false);
+    // gPrefrences.putString("ssid", ssid);
+    // gPrefrences.putString("password", pass);
+    // gPrefrences.putString("server_ip", ip);
+    // gPrefrences.end();
 
     uart0_printf("[JSON] Save Pref, SSID: %s, Password: %s, Server IP: %s\n", 
         ssid.c_str(), pass.c_str(), ip.c_str());
@@ -122,11 +122,13 @@ int parsePacket_WifiApConfigInfo(byte *rx_packet_header, byte *rx_packet_body, i
     }
 
     // sendAck(false);
+*/
 
     return 0;
 }
 
 bool tryToConnectWifiAP(String ssid_ap, String pass_ap) {
+/*    
     if(false == isSSID2_4GHz(ssid_ap.c_str())) {
         printWifiStatus(WiFi.status());
         return false;
@@ -144,7 +146,7 @@ bool tryToConnectWifiAP(String ssid_ap, String pass_ap) {
     if (WiFi.status() != WL_CONNECTED) {
         return false;  // 실패
     }
-
+*/
     return true;
 }
 

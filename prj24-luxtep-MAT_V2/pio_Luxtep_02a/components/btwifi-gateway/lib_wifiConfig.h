@@ -25,7 +25,6 @@ unsigned long lastReconnectAttempt = 0;
 const unsigned long reconnectInterval = 3000; // 3000 milliseconds
 uint32_t sequenceNumber = 0;
 
-TaskHandle_t receiverTaskHandle;
 
 boolean isTCP_Connected = false;  // TCP 연결 상태
 

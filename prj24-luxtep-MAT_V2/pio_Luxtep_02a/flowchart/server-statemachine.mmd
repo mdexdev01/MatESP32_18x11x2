@@ -1,0 +1,37 @@
+graph TD
+    A[Application Start] --> B[INITIALIZING];
+
+    B -- UI & Services Setup Complete --> C[MQTT_OFFLINE];
+
+    C -- User Clicks 'MQTT ON' / Connection Attempt --> D[MQTT_CONNECTING];
+    
+    D -- Connection Successful --> E[MQTT_CONNECTED];
+    D -- Connection Failed / Timeout --> C; 
+
+    E -- MQTT Connection Lost --> D; 
+    E -- User Clicks 'MQTT OFF' --> C;
+
+    subgraph BACKGROUND_SERVICES_AND_ACTIONS [Always Running When App Active]
+        direction LR
+        S1[TCP Server Listening - Port 9000] --> S2[Process Incoming TCP Data - ClientReader];
+        S3[Receive MQTT Messages - Callback function] --> S4[Log area update];
+        S5[UI Rendering - draw loop] --> S6[Update FPS/Status];
+        S2 -- Data processed --> S5;
+        S3 -- Message received --> S4;
+    end
+
+    subgraph ACTIONS_DEPENDING_ON_MQTT_STATE [Actions Controlled by MQTT Connectivity]
+        direction LR
+        AE[MQTT_CONNECTED State] --> A1[Send Periodic Command - Every 3s];
+        AE --> A2[User Presses 'A' - Send AppID IP];
+        AE --> A3[User Presses 'C' - Send Command];
+        
+        AF[MQTT_OFFLINE State] --> AF1[Disable Send Buttons];
+    end
+
+    C -- "App Manages" --> BACKGROUND_SERVICES_AND_ACTIONS;
+    D -- "App Manages" --> BACKGROUND_SERVICES_AND_ACTIONS;
+    E -- "App Manages" --> BACKGROUND_SERVICES_AND_ACTIONS;
+
+    E -- "Enables" --> ACTIONS_DEPENDING_ON_MQTT_STATE;
+    C -- "Disables" --> ACTIONS_DEPENDING_ON_MQTT_STATE;

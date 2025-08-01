@@ -109,62 +109,52 @@ int parsePacket_OSD_byMain(int my_board_id, byte *rx_packet_header, byte *rx_pac
 
     //---------------------------------------
     // 2단계: 수신 - 서브 헤더 및 테일
-    // int to_read = OSD_SUB_HEADER_LEN + body_len + TAIL_LEN;
-    int to_read = body_len;
-    int read_len = 0;
-
-    // uart0_printf("Main parse OSD Bd=%d, Len=%d.\n", rx_board_id, body_len);
-    // printUart1("#Main parse OSD Bd=%d, Len=%d, [-1]=%d (w=%d,h=%d)\n", rx_board_id, body_len, 
-    //             rx_packet_body[body_len - 1],
-    //             rx_packet_body[IDX_OSD_WIDTH], rx_packet_body[IDX_OSD_HEIGHT]);
+    uart0_printf("OSD Bd=%d, Len=%d, [-1]=%d (w=%d,h=%d)\n", rx_board_id, body_len, 
+                rx_packet_body[body_len - 1],
+                rx_packet_body[IDX_OSD_WIDTH], rx_packet_body[IDX_OSD_HEIGHT]);
 
     //---------------------------------------
     // 3단계: 보관 - 전송 혹은 보관
 
     //  send this packet to rx_board_id ----------------------------------
-    if (my_board_id != rx_board_id) {
-        // memcpy(rx_packet_body, rx_packet_header, HEAD_LEN);  // body_len
-
-        //  packet is already at packetBuf_OSDSub
-
-        is_osd_to_send = true;
-        // sendPacket1(rx_packet_body, PACKET_LEN_OSD);
-
-    } else {
+    if ((my_board_id == rx_board_id) || (rx_board_id == M_BOARD_ALL)) {
         copyPacketToOSDBuf(my_board_id, rx_packet_header, rx_packet_body);
+    } else {
+        uart0_printf("#[%8d]>> ERROR, OSD packet received for wrong board id = %d \n", millis(), rx_board_id);
+        return -1;  // ERROR: OSD packet received for wrong board id
     }
 
     return 0;
 }
 
 
-int parsePacket_OSD_bySub(int my_board_id, byte *rx_packet_header, byte *rx_packet_body) {
-    //---------------------------------------
-    // 1단계: 헤더 해석 ==> 읽을 사이즈 결정
-    int tx_board_id = rx_packet_header[IDX_TX_BOARD_ID];
-    int msg_id = rx_packet_header[IDX_MSG_ID];
-    int osd_buf_id = (msg_id & 0xF0) >> 4;
-    int rx_board_id = (msg_id & 0x0F);
+// int parsePacket_OSD_bySub(int my_board_id, byte *rx_packet_header, byte *rx_packet_body) {
+//     //---------------------------------------
+//     // 1단계: 헤더 해석 ==> 읽을 사이즈 결정
+//     int tx_board_id = rx_packet_header[IDX_TX_BOARD_ID];
+//     int msg_id = rx_packet_header[IDX_MSG_ID];
+//     int osd_buf_id = (msg_id & 0xF0) >> 4;
+//     int rx_board_id = (msg_id & 0x0F);
 
-    int size_100 = rx_packet_header[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
-    int size_1 = rx_packet_header[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
-    int body_len = size_100 * 100 + size_1;
+//     int size_100 = rx_packet_header[IDX_LENGTH_100];  // OSD LENGTH / 100 (SubHeader + Body, No Tail)
+//     int size_1 = rx_packet_header[IDX_LENGTH_1];      // OSD LENGTH % 100 (SubHeader + Body, No Tail)
+//     int body_len = size_100 * 100 + size_1;
 
-    //---------------------------------------
-    // 2단계: 서브 헤더 및 테일 읽기
-    // int to_read = body_len + TAIL_LEN;
-    int to_read = body_len;
-    int read_len = 0;
+//     //---------------------------------------
+//     // 2단계: 서브 헤더 및 테일 읽기
+//     // int to_read = body_len + TAIL_LEN;
+//     int to_read = body_len;
+//     int read_len = 0;
 
     
-    // if (my_board_id != rx_board_id) {
-    //     return -10;
-    // }
+//     // if (my_board_id != rx_board_id) {
+//     //     return -10;
+//     // }
 
-    //---------------------------------------
-    // 3단계: 서브 헤더 파싱
-    copyPacketToOSDBuf(my_board_id, rx_packet_header, (rx_packet_body));
+//     //---------------------------------------
+//     // 3단계: 서브 헤더 파싱
+//     copyPacketToOSDBuf(my_board_id, rx_packet_header, (rx_packet_body));
 
-    return 0;
-}
+//     return 0;
+// }
 #endif  // _GROUP_LED_COMMAND_H_
