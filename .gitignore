@@ -29,6 +29,8 @@ prj24-luxtep-MAT/
 prj24-luxtep-MAT_V2/espidf_ex/
 prj24-luxtep-MAT_V2/Fw_Luxtep_02/_backup, bin/
 
+prj25-espidf-examples/_폐기/
+
 # file extentions
 *.o 
 *.cfg
