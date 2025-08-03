@@ -5,7 +5,7 @@
 #include <Arduino.h>
 
 #include "configPins-mdll-24-6822.h"
-#include "libLED_Object.h"
+#include "lib_ledObject.h"
 #include "lib_wdtimer.h"
 
 #define pin_LED_WS2812C 100
@@ -135,10 +135,13 @@ void checkTimeLen(Button* theButton) {
 
     if ((VERY_LONG_CLICK_MS < time_len) && (theButton->isClickedVeryLong == false)) {
         theButton->isClickedVeryLong = true;
-        setNeopixelColor(pin_LED_WS2812C, 80, 30, 0);
-        uart0_printf("[%s] clicked - VERY LONG (%d ms) \n", theButton->nickName, time_len);
 
-        uart0_printf("RESTART \n");
+        setNeopixelColor(pin_LED_WS2812C, 80, 30, 0);
+        extern bool isOTACommand; 
+        if(isOTACommand == false)
+            uart0_printf("[%s] clicked - VERY LONG (%d ms) \n", theButton->nickName, time_len);
+
+        // uart0_printf("RESTART \n");
         // delay(200);
         // ESP.restart();
     } else if ((LONG_CLICK_MS < time_len) && (theButton->isClickedLong == false)) {

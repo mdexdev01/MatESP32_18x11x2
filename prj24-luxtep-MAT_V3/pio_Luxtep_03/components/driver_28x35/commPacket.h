@@ -743,9 +743,6 @@ void pumpSerial(void *pParam) {
     while (true) {
         vTaskDelay(1); // pumpSerial() task 초입.
 
-        // if(isOTACommand == true)
-        //     continue;
-
         // uart0_printf("[%8d] PUMP loop = %d (dip=%d) \n", millis(), pumpCount, MY_BOARD_ID);
 
         if (MY_BOARD_ID == 0) {

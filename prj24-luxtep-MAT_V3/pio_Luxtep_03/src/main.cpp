@@ -51,7 +51,7 @@
 #include "commPacket.h"
 #include "configPins-mdll-24-6822.h"
 #include "driver/ledc.h"
-#include "libLED_Object.h"
+#include "lib_ledObject.h"
 #include "libPrintRaw.h"
 #include "libProtocol.h"
 #include "packetBuffer.h"
@@ -339,13 +339,6 @@ void setup() {
 void loop() {
     vTaskDelay(1); // loop() task 초입 딜레이
 
-    // if(isOTACommand == true) {
-    //     loop_ota();
-
-    //     isOTACommand = false;
-    //     //  OTA
-    //     uart0_printf("OTA command \n");
-    // }
     loop_network_tasks();
 
     if(dip_state[4] == HIGH) // HIGH : SERIAL MODE
@@ -367,9 +360,6 @@ long loop_count = 0;
 void loopADCRead(void *pvParameters) {
     while (true) {
         vTaskDelay(1);  // loopADCRead() task 초입 딜레이
-
-        // if(isOTACommand == true)
-        //     continue;
 
         //      CHECK if UART1 is currently used.
         // if ((isBoard0_duringPermitCycle == true) && (MY_BOARD_ID == 0)) {
@@ -405,9 +395,11 @@ void loopADCRead(void *pvParameters) {
         //-  CHECK OTA
         if((TactButtons[0]->isClickedVeryLong == true) && (TactButtons[2]->isClickedVeryLong == true)) {
             isOTACommand = true;
-            // isOTACommand = true;
-            // uart0_printf("OTA Button clicked !!! \n");
-            delay(2000);
+            uart0_printf("OTA Button clicked !!! \n");
+
+            TactButtons[0]->isClickedVeryLong = false;
+            TactButtons[2]->isClickedVeryLong = false;
+            // delay(2000);
         }
         taskYIELD();
 

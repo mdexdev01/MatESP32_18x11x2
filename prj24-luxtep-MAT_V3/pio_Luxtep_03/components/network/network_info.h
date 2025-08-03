@@ -24,13 +24,12 @@ const char* MQTT_PASSWORD = "Lluxtep8*";
 
 // --- MQTT 토픽 정의 ---
 const char* MQTT_PUB_TOPIC_DEVICE_ALIVE = "device-alive";
-const char* MQTT_SUB_TOPIC_APP_ID = "banana7";
 const char* COMMAND_TOPIC = "command";
 
 // --- 통신 및 재시도 간격 설정 (ms 단위) ---
 const long WIFI_RECONNECT_INTERVAL_MS = 3000;
 const long MQTT_RETRY_INTERVAL_MS = 3000;
-const long MQTT_BROADCAST_INTERVAL_MS = 5000;
+const long MQTT_BROADCAST_INTERVAL_MS = 2000;
 
 // --- HiveMQ Cloud CA 인증서 ---
 const char* root_ca = \

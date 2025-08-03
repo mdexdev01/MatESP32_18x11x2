@@ -12,6 +12,7 @@ import java.util.Enumeration;
 import java.net.Socket;
 import java.util.HashMap;
 import controlP5.*;
+import processing.core.PApplet; // Import PApplet
 
 // ====================================================================
 // --- 전역 설정 및 상태 변수 ---
@@ -21,7 +22,7 @@ public static int brokerPort = 8883;
 public static String mqttUsername = "luxtep_mat_V1";
 public static String mqttPassword = "Lluxtep8*";
 public static String publishTopicCommand = "command";
-public static String pubTopic_AppID = "banana7";
+public static String pubTopic_AppID = "marine3";
 public static String subsTopic_DeviceAlive = "device-alive";
 public static MQTTClient mqttClient;
 public static boolean isMqttConnected = false;
@@ -32,12 +33,20 @@ public static ControlP5 cp5;
 public static Textfield appIDInput;
 public static Textfield tcpServerIpInput;
 public static Textfield mqttClientIdDisplay;
+public static controlP5.Button UpdateAppID;
 public static Textarea mqttMessageArea;
 public static controlP5.Button mqttToggleButton;
 public static controlP5.Button tcpSendButton;
 public static Textfield osdWidthInput;
 public static Textfield osdHeightInput;
 public static Textfield targetClientIdInput; // [추가] 타겟 클라이언트 ID 입력 필드
+
+public static Textfield osdBoard1;
+public static Textfield osdBoard0;
+public static controlP5.Button osd1PasteButton;
+public static controlP5.Button osd0PasteButton;
+
+public static PApplet currentPApplet; // Global PApplet instance
 
 public static boolean isMqttRunning = false;
 public static String mqttStatusText = "MQTT Status: Disconnected";
@@ -62,6 +71,7 @@ void setup() {
   fill(0, 255, 255);
   text("Initializing...", width/2, height/2);
 
+  currentPApplet = this; // Assign 'this' (PApplet instance) to the global variable
   setup_ui(this);
   mqttClient = new MQTTClient(this);
   setup_tcp_server();
@@ -121,7 +131,7 @@ void draw() {
 // ====================================================================
 void draw_tcp_clients_status() {
   final int TCP_UI_OFFSET_X = 600;
-  final int TCP_UI_OFFSET_Y = 80;
+  final int TCP_UI_OFFSET_Y = 380;
 
   fill(255, 120, 0);
   textAlign(LEFT, TOP);
@@ -157,13 +167,135 @@ void draw_tcp_clients_status() {
 // ====================================================================
 // --- Utility Function ---
 // ====================================================================
+void send_tcp_packet_to_all_clients() {
+  int width = 28;
+  int height = 35;
+  int targetId = 1; // 기본값을 1로 변경
+  try {
+    width = constrain(Integer.parseInt(osdWidthInput.getText()), 0, 28);
+    height = constrain(Integer.parseInt(osdHeightInput.getText()), 0, 35);
+    targetId = Integer.parseInt(targetClientIdInput.getText());
+  } catch (NumberFormatException e) {
+    println("Invalid input. Using default values.");
+  }
+  
+  int osd_data_size = width * height;
+  int variable_data_len_encoded = (osd_data_size + 8 + 2);
+  int total_packet_len = 8 + variable_data_len_encoded;
+
+  byte[] tx_actual = new byte[total_packet_len];
+
+  // 패킷 구성
+  tx_actual[0] = (byte)0xFF;
+  tx_actual[1] = (byte)0xFF;
+  tx_actual[2] = 0x02;
+  tx_actual[3] = 0;
+  tx_actual[4] = 3; // 3 = group id is osd
+  tx_actual[5] = (byte)(0 << 4 | targetId); // 패킷에 타겟 ID 설정
+  tx_actual[6] = (byte)(variable_data_len_encoded / 100);
+  tx_actual[7] = (byte)(variable_data_len_encoded % 100);
+  tx_actual[8] = 0;
+  tx_actual[9] = 0;
+  tx_actual[10] = (byte)width;
+  tx_actual[11] = (byte)height;
+  tx_actual[12] = 0;
+  tx_actual[13] = 0;
+  tx_actual[14] = 0;
+  tx_actual[15] = 0;
+  
+  // OSD 데이터 채우기
+  if(targetId == 1) { // client id 1일 때 osdBoard1의 내용을 사용
+    String osdDataString = osdBoard1.getText();
+    String[] byteStrings = osdDataString.split(",");
+    for (int i = 0; i < osd_data_size && i < byteStrings.length; i++) {
+      try {
+        tx_actual[16 + i] = (byte)Integer.parseInt(byteStrings[i].trim());
+      } catch (NumberFormatException e) {
+        tx_actual[16 + i] = (byte)0; // 파싱 오류 시 0으로 채움
+      }
+    }
+  }
+  else if(targetId == 0) { // client id 0일 때 osdBoard0의 내용을 사용
+    String osdDataString = osdBoard0.getText();
+    String[] byteStrings = osdDataString.split(",");
+    for (int i = 0; i < osd_data_size && i < byteStrings.length; i++) {
+      try {
+        tx_actual[16 + i] = (byte)Integer.parseInt(byteStrings[i].trim());
+      } catch (NumberFormatException e) {
+        tx_actual[16 + i] = (byte)0; // 파싱 오류 시 0으로 채움
+      }
+    }
+  }
+  else { // 그 외의 경우 (기존 로직 유지)
+    for (int i = 0; i < osd_data_size; i++) {
+      tx_actual[16 + i] = (byte)mouseX;
+    }
+  }
+
+  tx_actual[total_packet_len - 2] = (byte)tx_seq_num;
+  tx_actual[total_packet_len - 1] = (byte)0xFE;
+
+  // [수정] 타겟팅 로직
+  if (targetId >= 0 && targetId < 8) {
+    // 특정 클라이언트에게만 전송
+    Socket targetSocket = clientIdToSocketMap.get(targetId);
+    if (targetSocket != null && targetSocket.isConnected() && !targetSocket.isClosed()) {
+      tx_actual[5] = (byte)(0 << 4 | targetId); // 패킷에 타겟 ID 설정
+      try {
+        OutputStream os = targetSocket.getOutputStream();
+
+        print("  Actual TX bytes: ");
+        for (int k = 0; k < min(total_packet_len, 20); k++) { // Print first 20 bytes for debug
+          print(hex(tx_actual[k] & 0xFF, 2) + " ");
+        }
+        println();
+
+        os.write(tx_actual);
+        os.flush();
+        println("Sent packet to Client " + targetId);
+      } catch (IOException e) {
+        println("Error sending to Client " + targetId + ": " + e.getMessage());
+      }
+    } else {
+      println("Client " + targetId + " not connected or found.");
+    }
+  }
+  else { // 전체 클라이언트에게 전송 (ID 8 또는 그 외)
+    synchronized (clientSocketList) {
+      for (Socket s : clientSocketList) {
+        // [수정] 패킷의 client_id 부분을 0으로 설정하여 브로드캐스트임을 알림 (프로토콜 약속에 따라 변경 가능)
+        tx_actual[5] = (byte)(0 << 4 | 8); 
+        try {
+          if (s.isConnected() && !s.isClosed()) {
+            OutputStream os = s.getOutputStream();
+
+            print("  Actual TX bytes: ");
+            for (int k = 0; k < min(total_packet_len, 20); k++) { // Print first 20 bytes for debug
+              print(hex(tx_actual[k] & 0xFF, 2) + " ");
+            }
+            println();
+            
+            os.write(tx_actual);
+            os.flush();
+          }
+        } catch (IOException e) {
+          // 에러 발생 시 해당 소켓은 다음 루프에서 정리될 것임
+        }
+      }
+      println("Sent packet to all " + clientSocketList.size() + " clients." + "target id =" + targetId);
+    }
+  }
+
+  tx_seq_num++;
+}
+
 String getLocalIPAddress() {
   try {
     Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
     while (interfaces.hasMoreElements()) {
       NetworkInterface current = interfaces.nextElement();
       if (!current.isLoopback() && current.isUp() && !current.isVirtual()) {
-        Enumeration<InetAddress> addresses = current.getInetAddresses();
+        Enumeration<InetAddress> addresses = current.getInetAddresses(); // Corrected line
         while (addresses.hasMoreElements()) {
           InetAddress addr = addresses.nextElement();
           if (addr instanceof java.net.Inet4Address) {

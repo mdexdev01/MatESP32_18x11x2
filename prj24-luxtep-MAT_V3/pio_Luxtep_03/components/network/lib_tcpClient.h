@@ -170,19 +170,17 @@ void loop_checkSafeTCP(){
         return;
     }
 
-    reconnectMqtt();
-    client.loop();
-
     if (!tcpClient.connected()){
         if (tcpConnectInterval <= millis() - lastTcpConnectAttempt){
-            if (0 < storedTcpServerIp.length()){
+            if (4 < storedTcpServerIp.length()){
                 if (tcpClient.connect(storedTcpServerIp.c_str(), TCP_SERVER_PORT)){
                     receivedTcpServerIpAddress = storedTcpServerIp;
                     tcpClient.setNoDelay(true); // Nagle 알고리즘 비활성화
+                    uart0_printf("[%8lu ms] [TCP] Connected to %s\n", millis(), receivedTcpServerIpAddress.c_str());
                 }
             }
 
-            if (!tcpClient.connected() && 0 < receivedTcpServerIpAddress.length()){
+            if (!tcpClient.connected() && 4 < receivedTcpServerIpAddress.length()){
                 if (tcpClient.connect(receivedTcpServerIpAddress.c_str(), TCP_SERVER_PORT)){
                     tcpClient.setNoDelay(true); // Nagle 알고리즘 비활성화
                 }
@@ -190,6 +188,9 @@ void loop_checkSafeTCP(){
             lastTcpConnectAttempt = millis();
         }
     }
+
+    reconnectMqtt();
+    client.loop();
 }
 
 

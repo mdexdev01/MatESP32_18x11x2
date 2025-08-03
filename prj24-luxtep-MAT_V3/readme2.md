@@ -1,5 +1,13 @@
 # Luxtep 매트 프로젝트 문서
 
+#### <기초 설명> 이 폴더의 내용을 이해해줘. 이 파일(readme2.md) 를 읽으면 이 폴더 내부의 프로젝트를 이해할수 있어. IMPROVEMENTS.md는 향후 개선 방향이야. 그걸 RequirementsHistory.md 에 써진 순서대로 진행할거야.
+무시할 폴더 : Resources, osddata, pio_tcp_mqtt_ota_v03
+무시할 파일 : *.zip 파일
+
+#### <시스템 설정> platformio.exe 의 위치 : C:\Users\USER\.platformio\penv\Scripts
+
+
+
 ## 1. 프로젝트 개요
 
 본 프로젝트는 압력 센서 매트와 LED 매트릭스를 결합하여 사용자의 압력을 감지하고, 그에 따라 LED를 시각적으로 표현하는 시스템을 구축하는 것을 목표로 합니다. 시스템은 크게 **ESP32 기반의 TCP 클라이언트**와 **PC에서 실행되는 TCP 서버**로 구성됩니다.
@@ -7,8 +15,7 @@
 - **ESP32 (TCP 클라이언트):** 압력 센서 데이터 측정, LED 제어, TCP 통신 및 OTA(Over-the-Air) 펌웨어 업데이트 기능을 담당합니다.
 - **TCP 서버 (PC):** 다수의 ESP32 클라이언트와 연결하여 센서 데이터를 수신하고, OSD(On-Screen Display) 데이터를 전송하여 LED를 제어합니다.
 
-![시연 영상](https://img.youtube.com/vi/Cc8t9BERNs0/0.jpg)
-*<시연 영상: 발로 밟았을 때 LED 켜지는 모습>*
+![시연 영상](https://img.youtube.com/vi/Cc8t9BERNs0/0.jpg) *<시연 영상: 발로 밟았을 때 LED 켜지는 모습>*
 
 ---
 
